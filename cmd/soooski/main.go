@@ -24,6 +24,10 @@ import (
 )
 
 func main() {
+	os.Exit(runCLI(os.Args[1:]))
+}
+
+func runServer() {
 	cfg := config.Load()
 	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
 		log.Fatal(err)

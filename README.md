@@ -18,15 +18,53 @@ The container **is** the panel and the server. Mount `/data` and keep it.
 - **Secret admin and client paths** — not on a separate port; unknown URLs look like default nginx
 - **User page** — open a subscription URL in a browser for traffic, expiry, QR, and copyable configs (apps still get the raw sub)
 - **Traffic accounting** — per-user via sing-box Clash API outbound chains, plus Telegram MTProto bytes on that user's secret
-- **Admin account** — username, password, and the secret **admin path** are changeable in Settings (env vars are first boot only)
+- **Admin account** — username, password, and the secret **admin path** are changeable in Settings; `soooski reset-admin` recovers a forgotten login (env vars are first boot only)
 
 Protocol traffic is [sing-box](https://github.com/SagerNet/sing-box) 1.11.15 as a child process. Telegram FakeTLS is [mtg-multi](https://github.com/MHSanaei/mtg-multi) on localhost, one secret per user. The Go binary is the control plane, CDN path mux, admin UI, and camouflage site.
 
-## Deploy on a VPS
+## Install
 
-You need Docker Compose on a Linux VPS. Do **not** compile on the server. GitHub Actions publishes `linux/amd64` and `linux/arm64` images to GHCR.
+You need a Linux VPS. Ports **80** and **443** must be free. Do **not** compile on the server — GitHub Actions publishes `linux/amd64` and `linux/arm64` images to GHCR.
 
-Until this branch is merged, the image tag is the branch name. After merge to `release`, switch `SOOOSKI_IMAGE` to `ghcr.io/zwsq/soooski-panel:release`.
+### Automatic
+
+One line. Installs Docker if needed, puts the `soooski` CLI in `/usr/local/bin`, and starts the panel under `/opt/soooski`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zwsq/soooski-panel/release/install.sh | sudo bash
+```
+
+With a domain (recommended):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zwsq/soooski-panel/release/install.sh | sudo bash -s -- \
+  --host vpn.example.com --email you@example.com
+```
+
+If you pipe to bash, there are no prompts: a random admin password is printed once. To be asked for host / email / password, download then run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zwsq/soooski-panel/release/install.sh -o /tmp/soooski-install.sh
+sudo bash /tmp/soooski-install.sh
+```
+
+After that, everything is the CLI:
+
+```bash
+soooski url              # secret admin URL (also /opt/soooski/data/admin-url.txt)
+soooski logs -f
+soooski update           # new image + CLI
+soooski restart
+soooski reset-admin      # forgot username/password (prints a new password once)
+soooski reset-admin -user admin -password 'your-new-pass'
+soooski stop             # keeps /opt/soooski/data
+```
+
+`network_mode: host` is intentional: UDP 443, WireGuard, and extra REALITY ports bind on the VPS. Bookmark the admin URL.
+
+### Manual
+
+Same compose files the CLI uses. You still need Docker Compose.
 
 ```bash
 # optional, only if the GitHub package is private:
@@ -47,30 +85,28 @@ docker compose logs -f
 
 Or clone this repo and run `docker compose` from the root (same files).
 
-Bookmark the **admin URL** printed in the logs (also `data/admin-url.txt`).
+Upgrade later: `soooski update`, or `docker compose pull && docker compose up -d`.
 
-`network_mode: host` is intentional: UDP 443, WireGuard, and extra REALITY ports bind on the VPS without Docker NAT. Ports 80 and 443 on the host must be free.
-
-Upgrade later:
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-`/data` (or `./data`) is kept. New protocol tags are inserted on boot; existing users and settings are not wiped.
+`/opt/soooski/data` (or `./data`) is kept. New protocol tags are inserted on boot; existing users and settings are not wiped.
 
 If `docker pull` says denied, open the GHCR package → **Package settings** → Public, or log in with a `read:packages` token.
+
+Forgot the admin password (manual install, no host CLI):
+
+```bash
+docker exec soooski soooski reset-admin
+docker exec soooski soooski reset-admin -user admin -password 'your-new-pass'
+```
 
 ## First boot
 
 1. Set `SOOOSKI_PUBLIC_HOST` to a real hostname pointing at this VPS (A record). Placeholders like `vpn.example.com` are not sent to Let's Encrypt.
 2. Set `SOOOSKI_ACME_EMAIL` so Let's Encrypt can reach you.
-3. Optional: `SOOOSKI_ADMIN_PASSWORD`. Empty means a random password is printed **once** in the logs.
-4. Username defaults to `SOOOSKI_ADMIN_USER` (`admin`). Change username, password, and the secret admin path later in Settings.
+3. Optional: `SOOOSKI_ADMIN_PASSWORD`. Empty means a random password is printed **once** (install output or logs).
+4. Username defaults to `SOOOSKI_ADMIN_USER` (`admin`). Change username, password, and the secret admin path later in Settings, or `soooski reset-admin` if you are locked out.
 5. Point Cloudflare (if you use it) at origin **443**. Use **Full** until the dashboard shows a Let's Encrypt cert as **issued**, then **Full (strict)** is OK.
 
-Those admin env vars apply **only on first boot**. After that the hash in SQLite wins, so a compose default cannot lock you out.
+Those admin env vars apply **only on first boot**. After that the hash in SQLite wins, so a compose default cannot lock you out. Use `soooski reset-admin` (or `docker exec soooski soooski reset-admin`) if you forget them.
 
 ## Ports
 
@@ -148,8 +184,8 @@ Do **not** set the fake domain to your panel hostname or the REALITY handshake d
 | --- | --- | --- |
 | `SOOOSKI_PUBLIC_HOST` | empty | always (share links + ACME) |
 | `SOOOSKI_ACME_EMAIL` | empty | ACME contact |
-| `SOOOSKI_ADMIN_USER` | `admin` | **first boot only** (change later in Settings) |
-| `SOOOSKI_ADMIN_PASSWORD` | random, printed once | **first boot only** (change later in Settings) |
+| `SOOOSKI_ADMIN_USER` | `admin` | **first boot only** (change later in Settings or `soooski reset-admin`) |
+| `SOOOSKI_ADMIN_PASSWORD` | random, printed once | **first boot only** (change later in Settings or `soooski reset-admin`) |
 | `SOOOSKI_DATA` | `./data` | compose bind mount |
 | `SOOOSKI_IMAGE` | branch tag / `:release` | which image to pull |
 | `SOOOSKI_DATA_DIR` | `/data` | path inside the container |
