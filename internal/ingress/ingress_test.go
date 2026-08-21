@@ -67,7 +67,7 @@ func TestSecretAdminAndClientPaths(t *testing.T) {
 		t.Fatalf("api at root should be camouflage, got %d", rec.Code)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/favicon.png", nil)
+	req = httptest.NewRequest(http.MethodGet, "/favicon.svg", nil)
 	rec = httptest.NewRecorder()
 	ing.ServeHTTP(rec, req)
 	if rec.Code != 204 {

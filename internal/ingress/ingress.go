@@ -137,7 +137,7 @@ func (i *Ingress) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if brandAsset(path) {
 		if path == "/favicon.ico" {
-			r.URL.Path = "/favicon.png"
+			r.URL.Path = "/favicon.svg"
 		}
 		i.Next.ServeHTTP(w, r)
 		return
@@ -190,7 +190,7 @@ func (i *Ingress) getProxy(rt Route) *httputil.ReverseProxy {
 
 func brandAsset(path string) bool {
 	switch path {
-	case "/favicon.png", "/favicon.ico", "/apple-touch-icon.png", "/logo.png":
+	case "/favicon.svg", "/favicon.ico", "/apple-touch-icon.svg", "/logo.svg":
 		return true
 	default:
 		return false

@@ -326,7 +326,7 @@ func normalizeSecretPath(v string) (string, error) {
 	}
 	reserved := map[string]bool{
 		"api": true, "sub": true, "healthz": true, "generate_204": true,
-		"favicon.png": true, "favicon.ico": true, "logo.png": true, "apple-touch-icon.png": true,
+		"favicon.svg": true, "favicon.ico": true, "logo.svg": true, "apple-touch-icon.svg": true,
 	}
 	for _, part := range parts {
 		if part == "" || reserved[strings.ToLower(part)] {

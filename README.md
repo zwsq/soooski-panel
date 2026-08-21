@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="internal/web/dist/logo.png" width="160" height="160" alt="soooski">
+  <img src="internal/web/dist/logo.svg" width="160" height="160" alt="soooski">
 </p>
 
 # soooski
@@ -32,8 +32,8 @@ Until this branch is merged, the image tag is the branch name. After merge to `r
 # optional, only if the GitHub package is private:
 # echo YOUR_GITHUB_PAT | docker login ghcr.io -u YOUR_GITHUB_USER --password-stdin
 
-mkdir -p /var/lib/soooski
-cd /var/lib/soooski
+mkdir -p /opt/soooski
+cd /opt/soooski
 curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/zwsq/soooski-panel/release/docker-compose.yml
 curl -fsSL -o .env.example https://raw.githubusercontent.com/zwsq/soooski-panel/release/.env.example
 cp .env.example .env
@@ -156,5 +156,3 @@ Do **not** set the fake domain to your panel hostname or the REALITY handshake d
 | `SOOOSKI_LISTEN_HTTP` | `:80` | |
 | `SOOOSKI_LISTEN_HTTPS` | `:443` | |
 | `TZ` | `UTC` | |
-
-No Kubernetes. One compose file, one volume.
