@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>soooski</title>
+  <link rel="icon" type="image/png" href="./favicon.png" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <div id="login" class="login-wrap">
+    <form id="login-form" class="card login">
+      <img class="logo" src="./logo.png" width="72" height="72" alt="soooski" />
+      <h1>soooski</h1>
+      <p class="muted">Cloud-native multi-protocol panel</p>
+      <label>Username <input name="username" autocomplete="username" required /></label>
+      <label>Password <input name="password" type="password" autocomplete="current-password" required /></label>
+      <button type="submit">Sign in</button>
+      <p id="login-err" class="error" hidden></p>
+    </form>
+  </div>
+  <div id="app" hidden>
+    <aside>
+      <div class="brand"><img src="./logo.png" width="36" height="36" alt="" />soooski</div>
+      <nav>
+        <button data-view="dash">Dashboard</button>
+        <button data-view="users">Users</button>
+        <button data-view="inbounds">Inbounds</button>
+        <button data-view="domains">Domains</button>
+        <button data-view="settings">Settings</button>
+      </nav>
+      <button id="logout" class="ghost">Log out</button>
+    </aside>
+    <main>
+      <header>
+        <h2 id="title">Dashboard</h2>
+        <span id="core-pill" class="pill">core</span>
+      </header>
+      <section id="view-dash" class="view"></section>
+      <section id="view-users" class="view" hidden></section>
+      <section id="view-inbounds" class="view" hidden></section>
+      <section id="view-domains" class="view" hidden></section>
+      <section id="view-settings" class="view" hidden></section>
+    </main>
+  </div>
+  <div id="modal" class="modal" hidden>
+    <div class="card modal-card">
+      <h3 id="modal-title"></h3>
+      <div id="modal-body"></div>
+      <div class="row">
+        <button type="button" id="modal-ok">Save</button>
+        <button type="button" id="modal-cancel" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

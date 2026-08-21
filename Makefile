@@ -1,0 +1,11 @@
+.PHONY: build test docker
+
+build:
+	go build -o soooski ./cmd/soooski
+
+test:
+	go test ./...
+
+# local debug image only — VPS should pull ghcr.io/zwsq/soooski-panel
+docker:
+	docker build -t soooski:local .

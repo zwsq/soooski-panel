@@ -1,0 +1,11 @@
+/data/
+*.db
+*.db-wal
+*.db-shm
+/soooski
+dist-bin/
+.idea/
+.vscode/
+*.test
+.env
+.env.local

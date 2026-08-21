@@ -1,0 +1,36 @@
+# Deploy on a Linux VPS. Copy .env.example to .env and edit it.
+#
+# Host networking binds 80/443 TCP+UDP, WireGuard, and REALITY extra ports
+# on the machine itself (no Docker NAT). That is what you want for a proxy.
+#
+# First boot only: SOOOSKI_ADMIN_USER / SOOOSKI_ADMIN_PASSWORD.
+# After that, change the password in Settings. Username is not editable.
+
+services:
+  soooski:
+    image: ${SOOOSKI_IMAGE:-ghcr.io/zwsq/soooski-panel:release}
+    container_name: soooski
+    pull_policy: always
+    restart: unless-stopped
+    network_mode: host
+    stop_grace_period: 10s
+    volumes:
+      - ${SOOOSKI_DATA:-./data}:/data
+    environment:
+      SOOOSKI_DATA_DIR: /data
+      SOOOSKI_PUBLIC_HOST: ${SOOOSKI_PUBLIC_HOST:-}
+      SOOOSKI_ACME_EMAIL: ${SOOOSKI_ACME_EMAIL:-}
+      SOOOSKI_ADMIN_USER: ${SOOOSKI_ADMIN_USER:-admin}
+      SOOOSKI_ADMIN_PASSWORD: ${SOOOSKI_ADMIN_PASSWORD:-}
+      TZ: ${TZ:-UTC}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
