@@ -1,0 +1,303 @@
+#!/bin/bash
+# Host CLI for soooski. Install with:
+#   curl -fsSL https://raw.githubusercontent.com/zwsq/soooski-panel/release/install.sh | sudo bash
+set -euo pipefail
+
+SOOOSKI_REPO="${SOOOSKI_REPO:-https://raw.githubusercontent.com/zwsq/soooski-panel}"
+SOOOSKI_REF="${SOOOSKI_REF:-release}"
+SOOOSKI_HOME="${SOOOSKI_HOME:-/opt/soooski}"
+SOOOSKI_IMAGE="${SOOOSKI_IMAGE:-ghcr.io/zwsq/soooski-panel:${SOOOSKI_REF}}"
+RAW="${SOOOSKI_REPO}/${SOOOSKI_REF}"
+
+die() { echo "soooski: $*" >&2; exit 1; }
+info() { echo "soooski: $*"; }
+
+# Avoid SIGPIPE under `set -o pipefail` (tr|head can exit 141).
+rand_alnum() {
+  local n="${1:-16}" s=""
+  while [[ ${#s} -lt "$n" ]]; do
+    s+=$(head -c 64 /dev/urandom | tr -dc 'A-Za-z0-9' || true)
+  done
+  printf '%s' "${s:0:$n}"
+}
+
+need_root() {
+  if [[ "$(id -u)" -ne 0 ]]; then
+    die "run as root (sudo $0 $*)"
+  fi
+}
+
+docker_bin() {
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    echo docker
+    return
+  fi
+  if command -v docker >/dev/null 2>&1 && sudo -n docker info >/dev/null 2>&1; then
+    echo "sudo docker"
+    return
+  fi
+  if command -v docker >/dev/null 2>&1; then
+    echo "sudo docker"
+    return
+  fi
+  die "docker is not installed — run: soooski install"
+}
+
+compose() {
+  local d
+  d="$(docker_bin)"
+  if $d compose version >/dev/null 2>&1; then
+    $d compose --project-directory "$SOOOSKI_HOME" --env-file "$SOOOSKI_HOME/.env" -f "$SOOOSKI_HOME/docker-compose.yml" "$@"
+    return
+  fi
+  if command -v docker-compose >/dev/null 2>&1; then
+    (cd "$SOOOSKI_HOME" && docker-compose --env-file .env -f docker-compose.yml "$@")
+    return
+  fi
+  die "docker compose is not available"
+}
+
+ensure_linux() {
+  [[ "$(uname -s)" == Linux ]] || die "this CLI is for a Linux VPS"
+}
+
+install_docker() {
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    return
+  fi
+  info "installing Docker"
+  if ! command -v curl >/dev/null 2>&1; then
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get update -y
+      apt-get install -y curl ca-certificates
+    elif command -v yum >/dev/null 2>&1; then
+      yum install -y curl ca-certificates
+    else
+      die "install curl, then rerun"
+    fi
+  fi
+  curl -fsSL https://get.docker.com | sh
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl enable --now docker >/dev/null 2>&1 || true
+  fi
+  command -v docker >/dev/null 2>&1 || die "docker install failed"
+}
+
+install_cli() {
+  local tmp
+  tmp="$(mktemp)"
+  curl -fsSL "$RAW/scripts/soooski" -o "$tmp" || die "could not download CLI from $RAW/scripts/soooski"
+  chmod 0755 "$tmp"
+  mkdir -p /usr/local/bin
+  mv "$tmp" /usr/local/bin/soooski
+  info "CLI installed to /usr/local/bin/soooski"
+}
+
+fetch_compose() {
+  mkdir -p "$SOOOSKI_HOME/data"
+  curl -fsSL "$RAW/docker-compose.yml" -o "$SOOOSKI_HOME/docker-compose.yml" || die "could not download docker-compose.yml"
+  curl -fsSL "$RAW/.env.example" -o "$SOOOSKI_HOME/.env.example" || true
+}
+
+write_env() {
+  local host="$1" email="$2" user="$3" pass="$4"
+  umask 077
+  cat >"$SOOOSKI_HOME/.env" <<EOF
+SOOOSKI_PUBLIC_HOST=${host}
+SOOOSKI_ACME_EMAIL=${email}
+SOOOSKI_ADMIN_USER=${user}
+SOOOSKI_ADMIN_PASSWORD=${pass}
+SOOOSKI_IMAGE=${SOOOSKI_IMAGE}
+SOOOSKI_DATA=./data
+TZ=UTC
+EOF
+  chmod 600 "$SOOOSKI_HOME/.env"
+}
+
+prompt() {
+  local var="$1" msg="$2" def="${3-}"
+  local val=""
+  if [[ -n "$def" ]]; then
+    read -r -p "$msg [$def]: " val || true
+    printf -v "$var" '%s' "${val:-$def}"
+  else
+    read -r -p "$msg: " val || true
+    printf -v "$var" '%s' "$val"
+  fi
+}
+
+cmd_install() {
+  ensure_linux
+  need_root install
+  local host="" email="" user="admin" pass="" skip_prompt=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --host) host="${2-}"; shift 2 ;;
+      --email) email="${2-}"; shift 2 ;;
+      --user) user="${2-}"; shift 2 ;;
+      --password) pass="${2-}"; shift 2 ;;
+      --image) SOOOSKI_IMAGE="${2-}"; shift 2 ;;
+      --home) SOOOSKI_HOME="${2-}"; shift 2 ;;
+      --yes|-y|--non-interactive) skip_prompt=1; shift ;;
+      -h|--help)
+        echo "soooski install [--host DOMAIN] [--email ADDR] [--user NAME] [--password PASS] [--yes]"
+        return 0
+        ;;
+      *) die "unknown install flag $1" ;;
+    esac
+  done
+
+  install_docker
+  install_cli
+  fetch_compose
+
+  if [[ "$skip_prompt" -eq 0 && -t 0 ]]; then
+    [[ -n "$host" ]] || prompt host "Public host (domain for links + Let's Encrypt; empty = IP / self-signed)" ""
+    [[ -n "$email" ]] || prompt email "Let's Encrypt email (recommended)" ""
+    prompt user "Admin username" "${user:-admin}"
+    if [[ -z "$pass" ]]; then
+      prompt pass "Admin password (empty = generate and print once)" ""
+    fi
+  fi
+  user="${user:-admin}"
+  local generated=0
+  if [[ -z "$pass" ]]; then
+    pass="$(rand_alnum 16)"
+    generated=1
+  fi
+  if [[ ${#pass} -lt 8 ]]; then
+    die "password must be at least 8 characters"
+  fi
+
+  write_env "$host" "$email" "$user" "$pass"
+  info "pulling ${SOOOSKI_IMAGE}"
+  compose pull
+  compose up -d
+  local i url=""
+  for i in $(seq 1 40); do
+    if [[ -s "$SOOOSKI_HOME/data/admin-url.txt" ]]; then
+      url="$(tr -d '\n' <"$SOOOSKI_HOME/data/admin-url.txt")"
+      break
+    fi
+    sleep 1
+  done
+  # first-boot env is consumed; do not leave the password in .env
+  write_env "$host" "$email" "$user" ""
+
+  echo
+  echo "========================================"
+  echo " soooski is up"
+  echo " data:      $SOOOSKI_HOME/data"
+  echo " admin:     ${url:-"(see: soooski url)"}"
+  echo " user:      $user"
+  if [[ "$generated" -eq 1 ]]; then
+    echo " pass:      $pass"
+    echo " (shown once — soooski reset-admin if you lose it)"
+  else
+    echo " pass:      (the password you set)"
+  fi
+  echo " later:     soooski update | logs | reset-admin | url"
+  echo "========================================"
+  if [[ -z "$host" ]]; then
+    echo "No public host set. Edit $SOOOSKI_HOME/.env (SOOOSKI_PUBLIC_HOST) then: soooski restart"
+  fi
+}
+
+cmd_update() {
+  need_root update
+  [[ -f "$SOOOSKI_HOME/docker-compose.yml" ]] || die "not installed — run: soooski install"
+  install_cli
+  fetch_compose
+  compose pull
+  compose up -d
+  info "updated"
+}
+
+cmd_start() { [[ -f "$SOOOSKI_HOME/docker-compose.yml" ]] || die "not installed"; compose up -d; }
+cmd_stop() { compose down; }
+cmd_restart() { compose restart; }
+cmd_logs() {
+  if [[ $# -eq 0 ]]; then
+    compose logs --tail 100
+  else
+    compose logs "$@"
+  fi
+}
+cmd_status() { compose ps; }
+
+cmd_url() {
+  if [[ -s "$SOOOSKI_HOME/data/admin-url.txt" ]]; then
+    tr -d '\n' <"$SOOOSKI_HOME/data/admin-url.txt"
+    echo
+    return
+  fi
+  die "admin URL not ready yet — try: soooski logs"
+}
+
+cmd_reset_admin() {
+  local d
+  d="$(docker_bin)"
+  $d inspect soooski >/dev/null 2>&1 || die "container is not running — soooski start"
+  # pass remaining flags through to the panel binary
+  $d exec soooski soooski reset-admin "$@"
+}
+
+cmd_uninstall() {
+  need_root uninstall
+  local purge=0
+  [[ "${1-}" == "--purge" ]] && purge=1
+  if [[ -f "$SOOOSKI_HOME/docker-compose.yml" ]]; then
+    compose down || true
+  fi
+  if [[ "$purge" -eq 1 ]]; then
+    rm -rf "$SOOOSKI_HOME"
+    info "removed $SOOOSKI_HOME"
+  else
+    info "container stopped; data kept in $SOOOSKI_HOME/data (use --purge to delete)"
+  fi
+}
+
+usage() {
+  cat <<'EOF'
+soooski — install and operate the panel on a Linux VPS.
+
+  soooski install     install Docker if needed, start the panel
+  soooski update      refresh CLI, compose file, and image
+  soooski start       docker compose up -d
+  soooski stop        docker compose down (keeps /data)
+  soooski restart     restart the container
+  soooski logs        container logs (-f to follow)
+  soooski status      docker compose ps
+  soooski url         print the secret admin URL
+  soooski reset-admin set admin user/password (forgot password)
+  soooski uninstall   stop the container [--purge also deletes data]
+
+install flags: --host --email --user --password --yes
+reset-admin flags: -user -password  (empty password = generate)
+
+Forgot the admin password:
+  sudo soooski reset-admin
+  sudo soooski reset-admin -user admin -password 'new-pass-here'
+EOF
+}
+
+main() {
+  local cmd="${1-}"
+  shift || true
+  case "$cmd" in
+    ""|-h|--help|help) usage ;;
+    install) cmd_install "$@" ;;
+    update) cmd_update "$@" ;;
+    start) cmd_start "$@" ;;
+    stop) cmd_stop "$@" ;;
+    restart) cmd_restart "$@" ;;
+    logs) cmd_logs "$@" ;;
+    status|ps) cmd_status "$@" ;;
+    url) cmd_url "$@" ;;
+    reset-admin) cmd_reset_admin "$@" ;;
+    uninstall) cmd_uninstall "$@" ;;
+    *) die "unknown command $cmd (try: soooski help)" ;;
+  esac
+}
+
+main "$@"

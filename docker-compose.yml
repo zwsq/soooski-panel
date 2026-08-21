@@ -4,7 +4,7 @@
 # on the machine itself (no Docker NAT). That is what you want for a proxy.
 #
 # First boot only: SOOOSKI_ADMIN_USER / SOOOSKI_ADMIN_PASSWORD.
-# After that, change the password in Settings. Username is not editable.
+# After that, change them in Settings, or: soooski reset-admin
 
 services:
   soooski:
