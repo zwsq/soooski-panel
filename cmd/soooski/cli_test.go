@@ -37,4 +37,7 @@ func TestResetAdminCLI(t *testing.T) {
 	if runCLI([]string{"help"}) != 0 {
 		t.Fatal("help")
 	}
+	if runCLI([]string{"version"}) != 0 {
+		t.Fatal("version")
+	}
 }

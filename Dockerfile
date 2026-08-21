@@ -14,7 +14,14 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web /src/internal/web/dist ./internal/web/dist
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/soooski ./cmd/soooski
+ARG VERSION
+RUN ver="${VERSION:-}"; \
+    ver="${ver#v}"; \
+    if [ -z "$ver" ] && [ -f VERSION ]; then ver="$(tr -d '[:space:]' < VERSION)"; fi; \
+    : "${ver:=dev}"; \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath \
+      -ldflags="-s -w -X github.com/zwsq/soooski-panel/internal/version.Version=${ver}" \
+      -o /out/soooski ./cmd/soooski
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata wget tar

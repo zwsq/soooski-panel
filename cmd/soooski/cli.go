@@ -10,6 +10,7 @@ import (
 	"github.com/zwsq/soooski-panel/internal/config"
 	"github.com/zwsq/soooski-panel/internal/crypto"
 	"github.com/zwsq/soooski-panel/internal/store"
+	"github.com/zwsq/soooski-panel/internal/version"
 )
 
 func usage(w io.Writer) {
@@ -17,6 +18,7 @@ func usage(w io.Writer) {
 
 Usage:
   soooski                 start the panel (docker entrypoint)
+  soooski version         print the panel version
   soooski reset-admin     set admin username/password; drop login sessions
   soooski help
 
@@ -39,6 +41,9 @@ func runCLI(args []string) int {
 		return 0
 	case "help", "-h", "--help":
 		usage(os.Stdout)
+		return 0
+	case "version", "-v", "--version":
+		fmt.Println(version.Version)
 		return 0
 	case "reset-admin":
 		if err := resetAdmin(args[1:]); err != nil {

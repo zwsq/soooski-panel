@@ -104,6 +104,17 @@ docker exec soooski soooski reset-admin
 docker exec soooski soooski reset-admin -user admin -password 'your-new-pass'
 ```
 
+## Versioning
+
+The first release is **0.1.0**. Numbers move only when commits land on `release` (merge `dev` into `release`). GitHub Actions then:
+
+1. Reads commits since the last `v*` tag ([git-cliff](https://git-cliff.org), config in `cliff.toml`)
+2. Bumps semver: `feat` / `Add` / `Rebuild` / `Make` → minor; `fix` / `Fix` → patch; `BREAKING CHANGE` → minor while still on 0.x
+3. Writes [`CHANGELOG.md`](CHANGELOG.md) and `VERSION`, tags `vX.Y.Z`, and opens a GitHub Release
+4. Builds `ghcr.io/zwsq/soooski-panel:vX.Y.Z` (and `:release`)
+
+`soooski version` inside the container prints that number. Preview a cut locally with `scripts/release.sh --dry-run` (needs `git-cliff`).
+
 ## First boot
 
 1. Set `SOOOSKI_PUBLIC_HOST` to a real hostname pointing at this VPS (A record). Placeholders like `vpn.example.com` are not sent to Let's Encrypt.
