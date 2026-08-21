@@ -1,3 +1,11 @@
+FROM --platform=$BUILDPLATFORM node:22-bookworm AS web
+WORKDIR /src
+COPY web/package.json web/package-lock.json web/
+WORKDIR /src/web
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
 FROM --platform=$BUILDPLATFORM golang:1.22-bookworm AS build
 ARG TARGETOS=linux
 ARG TARGETARCH
@@ -5,7 +13,15 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/soooski ./cmd/soooski
+COPY --from=web /src/internal/web/dist ./internal/web/dist
+ARG VERSION
+RUN ver="${VERSION:-}"; \
+    ver="${ver#v}"; \
+    if [ -z "$ver" ] && [ -f VERSION ]; then ver="$(tr -d '[:space:]' < VERSION)"; fi; \
+    : "${ver:=dev}"; \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath \
+      -ldflags="-s -w -X github.com/zwsq/soooski-panel/internal/version.Version=${ver}" \
+      -o /out/soooski ./cmd/soooski
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata wget tar

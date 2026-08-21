@@ -75,32 +75,57 @@ func formatBytes(n int64) string {
 	return formatFloat1(f) + " " + u[i]
 }
 
+func trafficPct(used, limit int64) int {
+	if limit <= 0 {
+		return 0
+	}
+	pct := int(float64(used) / float64(limit) * 100)
+	if pct > 100 {
+		return 100
+	}
+	if pct == 0 && used > 0 {
+		return 1
+	}
+	return pct
+}
+
+func qrPNG(payload string) string {
+	if payload == "" {
+		return ""
+	}
+	png, err := qrcode.Encode(payload, qrcode.Medium, 200)
+	if err != nil {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(png)
+}
+
 type portalData struct {
-	Title      string
-	Username   string
-	Expired    bool
-	Used       string
-	Limit      string
-	LimitBytes int64
-	Pct        int
-	Expire     string
-	QR         string
-	SubURL     string
-	ClashPath  string
-	SingPath   string
-	V2Path     string
-	Links      []core.Link
+	Title           string
+	Username        string
+	Expired         bool
+	Used            string
+	Limit           string
+	HasLimit        bool
+	Pct             int
+	Expire          string
+	QR              string
+	SubURL          string
+	ClashPath       string
+	SingPath        string
+	V2Path          string
+	Links           []core.Link
+	TelegramEnabled bool
+	TelegramServer  string
+	TelegramDomain  string
+	TelegramTG      string
+	TelegramHTTPS   template.URL
+	TelegramQR      string
 }
 
 func (s *Server) writeClientPortal(w http.ResponseWriter, r *http.Request, u models.User, st models.Settings, domains []models.Domain, inbounds []models.Inbound) {
 	used := u.TrafficUp + u.TrafficDown
-	pct := 0
-	if u.TrafficLimit > 0 {
-		pct = int(float64(used) / float64(u.TrafficLimit) * 100)
-		if pct > 100 {
-			pct = 100
-		}
-	}
+	pct := trafficPct(used, u.TrafficLimit)
 	exp := ""
 	if u.ExpireAt != nil {
 		exp = u.ExpireAt.UTC().Format("2006-01-02")
@@ -116,22 +141,41 @@ func (s *Server) writeClientPortal(w http.ResponseWriter, r *http.Request, u mod
 		host = st.PublicHost
 	}
 	subURL := scheme + "://" + host + subPath
-	png, err := qrcode.Encode(subURL, qrcode.Medium, 180)
-	qr := ""
-	if err == nil {
-		qr = base64.StdEncoding.EncodeToString(png)
-	}
 	limit := ""
 	if u.TrafficLimit > 0 {
 		limit = formatBytes(u.TrafficLimit)
 	}
+	all := core.UserLinks(u, st, domains, inbounds)
+	var vpn []core.Link
+	var tgURI, tgHTTPS string
+	for _, l := range all {
+		if l.Protocol == "mtproto" {
+			if strings.HasPrefix(l.URI, "tg://") {
+				tgURI = l.URI
+			} else {
+				tgHTTPS = l.URI
+			}
+			continue
+		}
+		vpn = append(vpn, l)
+	}
+	tgHost := strings.TrimSpace(st.PublicHost)
+	if tgHost == "" {
+		tgHost = host
+	}
 	data := portalData{
 		Title: "soooski — " + u.Username, Username: u.Username, Expired: u.Expired(),
-		Used: formatBytes(used), Limit: limit, LimitBytes: u.TrafficLimit, Pct: pct, Expire: exp,
-		QR: qr, SubURL: subURL, ClashPath: subPath + "/clash", SingPath: subPath + "/sing-box",
-		V2Path: subPath + "/v2ray", Links: core.UserLinks(u, st, domains, inbounds),
+		Used: formatBytes(used), Limit: limit, HasLimit: u.TrafficLimit > 0, Pct: pct, Expire: exp,
+		QR: qrPNG(subURL), SubURL: subURL, ClashPath: subPath + "/clash", SingPath: subPath + "/sing-box",
+		V2Path: subPath + "/v2ray", Links: vpn,
+		TelegramEnabled: st.TelegramEnabled && (tgURI != "" || tgHTTPS != ""),
+		TelegramServer:  tgHost,
+		TelegramDomain:  st.TelegramFakeDomain,
+		TelegramTG:      tgURI,
+		TelegramHTTPS:   template.URL(tgHTTPS),
+		TelegramQR:      qrPNG(tgHTTPS),
 	}
-	tmpl, err := template.ParseFS(web.FS, "dist/client.html")
+	tmpl, err := template.ParseFS(web.FS, "client.html")
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return

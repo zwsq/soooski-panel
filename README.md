@@ -16,7 +16,7 @@ The container **is** the panel and the server. Mount `/data` and keep it.
 - **SNI mux on TCP 443** — your domain → HTTPS panel + path mux; Telegram fake domain → MTProto; other SNI → REALITY (same idea as Hiddify/HAProxy)
 - **Let's Encrypt** — HTTP-01 on port 80, auto-renew, dashboard status; issued cert is used by the panel and by TLS inbounds
 - **Secret admin and client paths** — not on a separate port; unknown URLs look like default nginx
-- **User page** — open a subscription URL in a browser for traffic, expiry, QR, and copyable configs (apps still get the raw sub)
+- **User page** — open a subscription URL in a browser: traffic, VPN subscription, Telegram proxy, then VPN configs. Apps still get the raw sub.
 - **Traffic accounting** — per-user via sing-box Clash API outbound chains, plus Telegram MTProto bytes on that user's secret
 - **Admin account** — username, password, and the secret **admin path** are changeable in Settings; `soooski reset-admin` recovers a forgotten login (env vars are first boot only)
 
@@ -28,37 +28,43 @@ You need a Linux VPS. Ports **80** and **443** must be free. Do **not** compile 
 
 ### Automatic
 
-One line. Installs Docker if needed, puts the `soooski` CLI in `/usr/local/bin`, and starts the panel under `/opt/soooski`.
+One line. Puts `soooski` in `/usr/local/bin` and opens a numbered menu. Choose **1** to install (Docker, image, domain, admin password). Later, run `sudo soooski` again for update, logs, URL, forgot-password, and the rest.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zwsq/soooski-panel/release/install.sh | sudo bash
 ```
 
-With a domain (recommended):
+The menu reads the keyboard even when the script is piped (`/dev/tty`). Typical flow:
+
+```
+  1) Install panel
+  2) Update panel
+  3) Start
+  4) Stop
+  5) Restart
+  6) Status
+  7) Show admin URL
+  8) View logs
+  9) Reset admin username / password
+ 10) Reconfigure domain / Let's Encrypt email
+ 11) Uninstall
+  0) Exit
+```
+
+Unattended (no menu) if you already know the flags:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zwsq/soooski-panel/release/install.sh | sudo bash -s -- \
-  --host vpn.example.com --email you@example.com
+  --host vpn.example.com --email you@example.com --yes
 ```
 
-If you pipe to bash, there are no prompts: a random admin password is printed once. To be asked for host / email / password, download then run:
+After install, the same menu is just:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zwsq/soooski-panel/release/install.sh -o /tmp/soooski-install.sh
-sudo bash /tmp/soooski-install.sh
+sudo soooski
 ```
 
-After that, everything is the CLI:
-
-```bash
-soooski url              # secret admin URL (also /opt/soooski/data/admin-url.txt)
-soooski logs -f
-soooski update           # new image + CLI
-soooski restart
-soooski reset-admin      # forgot username/password (prints a new password once)
-soooski reset-admin -user admin -password 'your-new-pass'
-soooski stop             # keeps /opt/soooski/data
-```
+Subcommands still work for scripts (`soooski url`, `soooski logs -f`, `soooski reset-admin -password '...'`).
 
 `network_mode: host` is intentional: UDP 443, WireGuard, and extra REALITY ports bind on the VPS. Bookmark the admin URL.
 
@@ -85,18 +91,29 @@ docker compose logs -f
 
 Or clone this repo and run `docker compose` from the root (same files).
 
-Upgrade later: `soooski update`, or `docker compose pull && docker compose up -d`.
+Upgrade later: `sudo soooski` → **2) Update**, or `docker compose pull && docker compose up -d`.
 
 `/opt/soooski/data` (or `./data`) is kept. New protocol tags are inserted on boot; existing users and settings are not wiped.
 
 If `docker pull` says denied, open the GHCR package → **Package settings** → Public, or log in with a `read:packages` token.
 
-Forgot the admin password (manual install, no host CLI):
+Forgot the admin password: `sudo soooski` → **9**, or without the host CLI:
 
 ```bash
 docker exec soooski soooski reset-admin
 docker exec soooski soooski reset-admin -user admin -password 'your-new-pass'
 ```
+
+## Versioning
+
+The first release is **0.1.0**. Numbers move only when commits land on `release` (merge `dev` into `release`). GitHub Actions then:
+
+1. Reads commits since the last `v*` tag ([git-cliff](https://git-cliff.org), config in `cliff.toml`)
+2. Bumps semver: `feat` / `Add` / `Rebuild` / `Make` → minor; `fix` / `Fix` → patch; `BREAKING CHANGE` → minor while still on 0.x
+3. Writes [`CHANGELOG.md`](CHANGELOG.md) and `VERSION`, tags `vX.Y.Z`, and opens a GitHub Release
+4. Builds `ghcr.io/zwsq/soooski-panel:vX.Y.Z` (and `:release`)
+
+`soooski version` inside the container prints that number. Preview a cut locally with `scripts/release.sh --dry-run` (needs `git-cliff`).
 
 ## First boot
 

@@ -1,4 +1,6 @@
 .git
 data
 *.db
-soooski
+web/node_modules
+web/dist
+/soooski
