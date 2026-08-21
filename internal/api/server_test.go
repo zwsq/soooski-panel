@@ -314,8 +314,8 @@ func TestQuotaReenableAndAdminPath(t *testing.T) {
 	}
 	tgAt := bytes.Index(portal, []byte("Telegram proxy"))
 	vpnAt := bytes.Index(portal, []byte("VPN configs"))
-	if tgAt < 0 || vpnAt < 0 || tgAt > vpnAt {
-		t.Fatalf("telegram should be above VPN configs: tg=%d vpn=%d", tgAt, vpnAt)
+	if tgAt < 0 || vpnAt < 0 || vpnAt > tgAt {
+		t.Fatalf("VPN configs should be above telegram: tg=%d vpn=%d", tgAt, vpnAt)
 	}
 
 	req, _ = http.NewRequest(http.MethodPut, ts.URL+"/api/users/"+strconv.FormatInt(user.ID, 10), bytes.NewBufferString(`{"telegram_regenerate":true}`))

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "react-day-picker/style.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -57,3 +58,13 @@ body {
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 * { border-color: var(--border); }
+
+.rdp-root {
+  --rdp-accent-color: oklch(0.82 0.12 180);
+  --rdp-accent-background-color: oklch(0.28 0.03 180);
+  --rdp-day-width: 2.4rem;
+  --rdp-day-height: 2.4rem;
+  --rdp-day_button-border-radius: 0.6rem;
+  --rdp-selected-border: 0;
+  color: var(--foreground);
+}

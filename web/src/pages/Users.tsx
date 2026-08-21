@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,19 +16,17 @@ import type { Link, User } from "@/lib/types";
 
 function TrafficFields({
   id,
-  limit,
-  onReady,
+  value,
+  unit,
+  onValue,
+  onUnit,
 }: {
   id: string;
-  limit: number;
-  onReady: (get: () => number) => void;
+  value: string;
+  unit: string;
+  onValue: (v: string) => void;
+  onUnit: (u: string) => void;
 }) {
-  const p = trafficParts(limit);
-  const [unit, setUnit] = useState(p.unit);
-  const [value, setValue] = useState(p.unit === "unlimited" ? "" : String(p.value));
-  useEffect(() => {
-    onReady(() => trafficLimitFrom(value, unit));
-  }, [value, unit, onReady]);
   return (
     <div className="flex gap-2">
       <Input
@@ -35,11 +34,17 @@ function TrafficFields({
         type="number"
         min={0}
         step="0.1"
-        value={value}
+        value={unit === "unlimited" ? "" : value}
         disabled={unit === "unlimited"}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => onValue(e.target.value)}
       />
-      <Select value={unit} onValueChange={(v) => setUnit(v as typeof unit)}>
+      <Select
+        value={unit}
+        onValueChange={(v) => {
+          onUnit(v);
+          if (v === "unlimited") onValue("");
+        }}
+      >
         <SelectTrigger className="w-36">
           <SelectValue />
         </SelectTrigger>
@@ -63,12 +68,14 @@ export function UsersPage() {
   const [addName, setAddName] = useState("");
   const [addNote, setAddNote] = useState("");
   const [addExp, setAddExp] = useState("");
-  const [getAddLim, setGetAddLim] = useState<() => number>(() => 0);
+  const [addLim, setAddLim] = useState("");
+  const [addUnit, setAddUnit] = useState("unlimited");
   const [editName, setEditName] = useState("");
   const [editNote, setEditNote] = useState("");
   const [editEn, setEditEn] = useState("1");
   const [editExp, setEditExp] = useState("");
-  const [getEditLim, setGetEditLim] = useState<() => number>(() => 0);
+  const [editLim, setEditLim] = useState("");
+  const [editUnit, setEditUnit] = useState("unlimited");
 
   async function load() {
     setUsers(await api<User[]>("/api/users"));
@@ -91,6 +98,8 @@ export function UsersPage() {
             setAddName("");
             setAddNote("");
             setAddExp("");
+            setAddLim("");
+            setAddUnit("unlimited");
             setAddOpen(true);
           }}
         >
@@ -156,11 +165,14 @@ export function UsersPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
+                            const p = trafficParts(u.traffic_limit);
                             setEdit(u);
                             setEditName(u.username);
                             setEditNote(u.note || "");
                             setEditEn(u.enable || userStatus(u).t === "quota" ? "1" : "0");
                             setEditExp(ymd(u.expire_at));
+                            setEditLim(p.unit === "unlimited" ? "" : String(p.value));
+                            setEditUnit(p.unit);
                           }}
                         >
                           Edit
@@ -202,11 +214,11 @@ export function UsersPage() {
             </div>
             <div className="grid gap-1.5">
               <Label>Traffic limit</Label>
-              <TrafficFields id="add-lim" limit={0} onReady={(fn) => setGetAddLim(() => fn)} />
+              <TrafficFields id="add-lim" value={addLim} unit={addUnit} onValue={setAddLim} onUnit={setAddUnit} />
             </div>
             <div className="grid gap-1.5">
-              <Label>Expire (UTC day, empty = none)</Label>
-              <Input type="date" value={addExp} onChange={(e) => setAddExp(e.target.value)} />
+              <Label>Expire (end of that UTC day)</Label>
+              <DatePicker value={addExp} onChange={setAddExp} />
             </div>
           </div>
           <DialogFooter>
@@ -215,7 +227,12 @@ export function UsersPage() {
                 try {
                   await api("/api/users", {
                     method: "POST",
-                    json: { username: addName, note: addNote, traffic_limit: getAddLim(), expire_at: addExp },
+                    json: {
+                      username: addName,
+                      note: addNote,
+                      traffic_limit: trafficLimitFrom(addLim, addUnit),
+                      expire_at: addExp,
+                    },
                   });
                   setAddOpen(false);
                   await load();
@@ -259,11 +276,11 @@ export function UsersPage() {
               </div>
               <div className="grid gap-1.5">
                 <Label>Traffic limit</Label>
-                <TrafficFields id="edit-lim" limit={edit.traffic_limit} onReady={(fn) => setGetEditLim(() => fn)} />
+                <TrafficFields id="edit-lim" value={editLim} unit={editUnit} onValue={setEditLim} onUnit={setEditUnit} />
               </div>
               <div className="grid gap-1.5">
-                <Label>Expire</Label>
-                <Input type="date" value={editExp} onChange={(e) => setEditExp(e.target.value)} />
+                <Label>Expire (end of that UTC day)</Label>
+                <DatePicker value={editExp} onChange={setEditExp} />
               </div>
               {edit.telegram_secret && (
                 <div className="rounded-lg border border-[#2AABEE]/40 bg-[#2AABEE]/10 p-3 text-sm">
@@ -301,7 +318,7 @@ export function UsersPage() {
                       username: editName,
                       note: editNote,
                       enable: editEn === "1",
-                      traffic_limit: getEditLim(),
+                      traffic_limit: trafficLimitFrom(editLim, editUnit),
                       expire_at: editExp,
                     },
                   });
@@ -327,7 +344,7 @@ export function UsersPage() {
             <div className="grid gap-3 text-sm">
               <p className="text-muted-foreground">Import this URL in Hiddify / v2rayNG / Clash Meta / sing-box:</p>
               <code className="block break-all rounded-md bg-background p-2">{location.origin + links.sub}</code>
-              <p className="text-muted-foreground">Open that URL in a browser for the user page (Telegram proxy + configs).</p>
+              <p className="text-muted-foreground">Open that URL in a browser for the user page (VPN configs, then Telegram).</p>
               <code className="block break-all rounded-md bg-background p-2">{location.origin + links.clash}</code>
               <code className="block break-all rounded-md bg-background p-2">{location.origin + links.sing_box}</code>
               <p className="font-medium">Share links</p>

@@ -4,15 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-const items = [
+export const VIEWS = ["dash", "users", "inbounds", "domains", "settings"] as const;
+export type View = (typeof VIEWS)[number];
+
+const items: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dash", label: "Dashboard", icon: LayoutDashboard },
   { id: "users", label: "Users", icon: Users },
   { id: "inbounds", label: "Inbounds", icon: Waypoints },
   { id: "domains", label: "Domains", icon: Globe },
   { id: "settings", label: "Settings", icon: Settings },
-] as const;
+];
 
-export type View = (typeof items)[number]["id"];
+export function parseView(hash = location.hash): View {
+  const v = hash.replace(/^#\/?/, "");
+  return (VIEWS as readonly string[]).includes(v) ? (v as View) : "dash";
+}
 
 export function Shell({
   view,
@@ -29,7 +35,7 @@ export function Shell({
 }) {
   const [open, setOpen] = useState(false);
   const nav = (
-    <nav className="flex flex-1 flex-col gap-1">
+    <nav className="flex flex-col gap-1">
       {items.map((it) => {
         const Icon = it.icon;
         const active = view === it.id;
@@ -54,18 +60,15 @@ export function Shell({
   );
   return (
     <div className="min-h-screen md:grid md:grid-cols-[240px_1fr]">
-      <aside className="hidden border-r border-border bg-card/40 p-4 md:flex md:flex-col">
+      <aside className="sticky top-0 hidden h-screen border-r border-border bg-card/40 p-4 md:flex md:flex-col">
         <div className="mb-6 flex items-center gap-2 px-2 pt-2">
           <img src="./logo.svg" alt="" className="size-9 rounded-full bg-black" />
           <span className="text-lg font-semibold tracking-wide text-primary">soooski</span>
         </div>
         {nav}
-        <Button variant="ghost" className="mt-auto justify-start" onClick={onLogout}>
-          <LogOut /> Log out
-        </Button>
       </aside>
       <div className="flex min-h-screen flex-col">
-        <header className="flex items-center gap-3 border-b border-border px-4 py-3">
+        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setOpen((v) => !v)}>
             {open ? <X /> : <Menu />}
           </Button>
@@ -73,15 +76,11 @@ export function Shell({
           {coreUp !== null && (
             <Badge variant={coreUp ? "ok" : "bad"}>{coreUp ? "core up" : "core down"}</Badge>
           )}
+          <Button variant="outline" size="sm" className="ml-auto" onClick={onLogout}>
+            <LogOut /> Log out
+          </Button>
         </header>
-        {open && (
-          <div className="border-b border-border p-3 md:hidden">
-            {nav}
-            <Button variant="ghost" className="mt-2 w-full justify-start" onClick={onLogout}>
-              <LogOut /> Log out
-            </Button>
-          </div>
-        )}
+        {open && <div className="border-b border-border p-3 md:hidden">{nav}</div>}
         <main className="flex-1 p-4 md:p-8">{children}</main>
       </div>
     </div>

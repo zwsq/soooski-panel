@@ -58,7 +58,9 @@
     }
     .hero-grid { display: grid; grid-template-columns: 160px 1fr; gap: 18px; align-items: center; position: relative; }
     @media (max-width: 640px) { .hero-grid { grid-template-columns: 1fr; justify-items: center; text-align: center; } .hero-grid .row { justify-content: center; } }
-    .kicker { color: var(--tg); font-weight: 800; letter-spacing: .12em; font-size: 11px; text-transform: uppercase; margin: 0 0 6px; }
+    .tg-logo { width: 28px; height: 28px; display: block; }
+    .kicker-row { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
+    .kicker { color: var(--tg); font-weight: 800; letter-spacing: .12em; font-size: 11px; text-transform: uppercase; margin: 0; }
     .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
     .meta div { background: #0b1220aa; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
     .meta b { display: block; font-size: 13px; }
@@ -73,28 +75,6 @@
   </header>
   <h1>{{.Username}}</h1>
   <p class="muted" style="margin-top:0">Your subscription{{if .Expired}} — expired{{end}}</p>
-
-  {{if .TelegramEnabled}}
-  <section class="card hero" aria-label="Telegram proxy">
-    <p class="kicker">Telegram proxy</p>
-    <div class="hero-grid">
-      {{if .TelegramQR}}<img class="qr" width="140" height="140" alt="Telegram proxy QR" src="data:image/png;base64,{{.TelegramQR}}" />{{end}}
-      <div>
-        <h2 class="section-title">Open in Telegram</h2>
-        <p class="muted" style="margin:6px 0 0">One tap. This proxy is yours only — bytes count toward the traffic quota below.</p>
-        <div class="meta">
-          <div class="muted">Server<b>{{.TelegramServer}}:443</b></div>
-          <div class="muted">Fake TLS<b>{{.TelegramDomain}}</b></div>
-        </div>
-        <div class="row">
-          <a class="btn tg" href="{{.TelegramTG}}">Open Telegram</a>
-          <button type="button" class="ghost" data-copy="{{.TelegramTG}}">Copy tg:// link</button>
-          {{if .TelegramHTTPS}}<a class="btn ghost" href="{{.TelegramHTTPS}}">t.me/proxy</a>{{end}}
-        </div>
-      </div>
-    </div>
-  </section>
-  {{end}}
 
   <div class="card">
     <div class="muted">Traffic</div>
@@ -128,6 +108,34 @@
     <p class="muted">No VPN inbounds are enabled yet.</p>
     {{end}}
   </div>
+
+  {{if .TelegramEnabled}}
+  <section class="card hero" aria-label="Telegram proxy">
+    <div class="kicker-row">
+      <svg class="tg-logo" viewBox="0 0 240 240" aria-hidden="true">
+        <circle cx="120" cy="120" r="120" fill="#2AABEE"/>
+        <path fill="#fff" d="M49.7 120.4c25.5-11.1 42.5-18.4 51-22 24.3-10.1 29.4-11.9 32.7-11.9.7 0 2.3.2 3.4 1.1.9.7 1.1 1.7 1.3 2.4.1.7.3 2.3.2 3.5-1.8 18.9-9.6 64.7-13.6 85.9-1.7 8.9-5 11.9-8.2 12.2-7 .6-12.3-4.6-19-9.6-10.6-7.8-16.5-12.6-26.8-20.2-11.9-8.8-4.2-13.6 2.6-21.5 1.8-2 32.5-29.8 33.1-32.3.1-.3.1-1.5-.6-2.1-.7-.6-1.7-.4-2.5-.2-1.1.2-17.8 11.3-50.3 33.3-4.8 3.3-9.1 4.9-13 4.8-4.3-.1-12.5-2.4-18.6-4.4-7.5-2.4-13.5-3.7-13-7.9.3-2.2 3.3-4.4 9.1-6.7z"/>
+      </svg>
+      <p class="kicker" style="margin:0">Telegram proxy</p>
+    </div>
+    <div class="hero-grid">
+      {{if .TelegramQR}}<img class="qr" width="140" height="140" alt="Telegram proxy QR" src="data:image/png;base64,{{.TelegramQR}}" />{{end}}
+      <div>
+        <h2 class="section-title">Open in Telegram</h2>
+        <p class="muted" style="margin:6px 0 0">One tap. This proxy is yours only — bytes count toward the traffic quota above.</p>
+        <div class="meta">
+          <div class="muted">Server<b>{{.TelegramServer}}:443</b></div>
+          <div class="muted">Fake TLS<b>{{.TelegramDomain}}</b></div>
+        </div>
+        <div class="row">
+          <a class="btn tg" href="{{.TelegramTG}}">Open Telegram</a>
+          <button type="button" class="ghost" data-copy="{{.TelegramTG}}">Copy tg:// link</button>
+          {{if .TelegramHTTPS}}<a class="btn ghost" href="{{.TelegramHTTPS}}">t.me/proxy</a>{{end}}
+        </div>
+      </div>
+    </div>
+  </section>
+  {{end}}
 </main>
 <script>
 document.querySelectorAll("[data-copy]").forEach(function(b){

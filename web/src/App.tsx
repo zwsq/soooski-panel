@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Shell, type View } from "@/components/Layout";
+import { Shell, parseView, type View } from "@/components/Layout";
 import { Toaster } from "@/components/ui/sonner";
 import { api } from "@/lib/api";
 import { DashboardPage } from "@/pages/Dashboard";
@@ -11,13 +11,19 @@ import { UsersPage } from "@/pages/Users";
 
 export default function App() {
   const [authed, setAuthed] = useState<boolean | null>(null);
-  const [view, setView] = useState<View>("dash");
+  const [view, setView] = useState<View>(() => parseView());
   const [coreUp, setCoreUp] = useState<boolean | null>(null);
 
   useEffect(() => {
     api("/api/me")
       .then(() => setAuthed(true))
       .catch(() => setAuthed(false));
+  }, []);
+
+  useEffect(() => {
+    const onHash = () => setView(parseView());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
   if (authed === null) return null;
@@ -28,7 +34,11 @@ export default function App() {
       <Toaster />
       <Shell
         view={view}
-        onView={setView}
+        onView={(v) => {
+          const next = `#${v}`;
+          if (location.hash !== next) location.hash = next;
+          else setView(v);
+        }}
         coreUp={coreUp}
         onLogout={async () => {
           await api("/api/logout", { method: "POST" });
