@@ -301,6 +301,23 @@ func TestQuotaReenableAndAdminPath(t *testing.T) {
 		t.Fatalf("user links telegram %d %s", res.StatusCode, raw)
 	}
 
+	req, _ = http.NewRequest(http.MethodGet, ts.URL+"/sub/"+dave.SubToken, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh) Chrome/120")
+	res, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	portal, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	if res.StatusCode != 200 || !bytes.Contains(portal, []byte("Telegram proxy")) {
+		t.Fatalf("client page telegram %d %s", res.StatusCode, portal)
+	}
+	tgAt := bytes.Index(portal, []byte("Telegram proxy"))
+	vpnAt := bytes.Index(portal, []byte("VPN configs"))
+	if tgAt < 0 || vpnAt < 0 || tgAt > vpnAt {
+		t.Fatalf("telegram should be above VPN configs: tg=%d vpn=%d", tgAt, vpnAt)
+	}
+
 	req, _ = http.NewRequest(http.MethodPut, ts.URL+"/api/users/"+strconv.FormatInt(user.ID, 10), bytes.NewBufferString(`{"telegram_regenerate":true}`))
 	req.Header.Set("Authorization", "Bearer "+login.Token)
 	req.Header.Set("Content-Type", "application/json")

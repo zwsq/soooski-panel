@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.Title}}</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
+  <style>
+    :root {
+      --bg: #0b1220;
+      --bg-2: #111827;
+      --card: #151c2c;
+      --line: #243049;
+      --text: #e8eef8;
+      --muted: #8b97ad;
+      --accent: #2ee6d0;
+      --accent-ink: #042821;
+      --ok: #34d399;
+      --danger: #fb7185;
+      --tg: #2AABEE;
+      --tg-ink: #031018;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: radial-gradient(1200px 600px at 10% -10%, #12344a 0%, transparent 50%), var(--bg); color: var(--text); font: 15px/1.45 ui-sans-serif, system-ui, sans-serif; color-scheme: dark; }
+    main { max-width: 760px; margin: 0 auto; padding: 28px 16px 80px; }
+    header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .04em; }
+    .brand img { width: 40px; height: 40px; border-radius: 50%; background: #000; }
+    h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -.02em; }
+    .muted { color: var(--muted); }
+    .card { background: color-mix(in oklab, var(--card) 92%, black); border: 1px solid var(--line); border-radius: 18px; padding: 18px; margin-top: 14px; box-shadow: 0 12px 40px #00040; }
+    .stat { font-size: 22px; font-weight: 750; }
+    .bar { height: 8px; background: #0b1220; border-radius: 99px; overflow: hidden; margin-top: 10px; }
+    .bar > i { display: block; height: 100%; background: var(--accent); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    button, a.btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 12px; padding: 10px 14px; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; }
+    button.ghost, a.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+    button.tg, a.tg { background: var(--tg); color: #fff; }
+    code, .uri { display: block; word-break: break-all; background: #0b1220; padding: 10px 12px; border-radius: 10px; font-size: 12px; margin-top: 8px; border: 1px solid var(--line); }
+    .pill { font-size: 12px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); font-weight: 650; }
+    .pill.cdn { color: #7dd3fc; border-color: #7dd3fc55; }
+    .pill.direct { color: var(--accent); border-color: #2ee6d055; }
+    .pill.ok { color: var(--ok); border-color: #34d39955; }
+    .qr { display: block; margin: 0 auto; background: #fff; padding: 10px; border-radius: 16px; }
+    .cfg { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .hero {
+      background: linear-gradient(145deg, #16324a 0%, #0f1a2b 55%, #152033 100%);
+      border-color: #2AABEE66;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: "";
+      position: absolute; right: -40px; top: -40px; width: 180px; height: 180px;
+      background: radial-gradient(circle, #2AABEE33, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-grid { display: grid; grid-template-columns: 160px 1fr; gap: 18px; align-items: center; position: relative; }
+    @media (max-width: 640px) { .hero-grid { grid-template-columns: 1fr; justify-items: center; text-align: center; } .hero-grid .row { justify-content: center; } }
+    .kicker { color: var(--tg); font-weight: 800; letter-spacing: .12em; font-size: 11px; text-transform: uppercase; margin: 0 0 6px; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .meta div { background: #0b1220aa; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+    .meta b { display: block; font-size: 13px; }
+    .section-title { margin: 0; font-size: 16px; }
+  </style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div class="brand"><img src="/logo.svg" width="40" height="40" alt="" />soooski</div>
+    <span class="pill ok">Active</span>
+  </header>
+  <h1>{{.Username}}</h1>
+  <p class="muted" style="margin-top:0">Your subscription{{if .Expired}} — expired{{end}}</p>
+
+  {{if .TelegramEnabled}}
+  <section class="card hero" aria-label="Telegram proxy">
+    <p class="kicker">Telegram proxy</p>
+    <div class="hero-grid">
+      {{if .TelegramQR}}<img class="qr" width="140" height="140" alt="Telegram proxy QR" src="data:image/png;base64,{{.TelegramQR}}" />{{end}}
+      <div>
+        <h2 class="section-title">Open in Telegram</h2>
+        <p class="muted" style="margin:6px 0 0">One tap. This proxy is yours only — bytes count toward the traffic quota below.</p>
+        <div class="meta">
+          <div class="muted">Server<b>{{.TelegramServer}}:443</b></div>
+          <div class="muted">Fake TLS<b>{{.TelegramDomain}}</b></div>
+        </div>
+        <div class="row">
+          <a class="btn tg" href="{{.TelegramTG}}">Open Telegram</a>
+          <button type="button" class="ghost" data-copy="{{.TelegramTG}}">Copy tg:// link</button>
+          {{if .TelegramHTTPS}}<a class="btn ghost" href="{{.TelegramHTTPS}}">t.me/proxy</a>{{end}}
+        </div>
+      </div>
+    </div>
+  </section>
+  {{end}}
+
+  <div class="card">
+    <div class="muted">Traffic</div>
+    <div class="stat">{{.Used}}{{if .Limit}} / {{.Limit}}{{end}}{{if not .Limit}} / unlimited{{end}}</div>
+    {{if .LimitBytes}}<div class="bar"><i style="width:{{.Pct}}%"></i></div>{{end}}
+    <p class="muted" style="margin:10px 0 0">{{if .Expire}}Expires {{.Expire}} (UTC){{else}}No expiry{{end}}</p>
+  </div>
+
+  <div class="card">
+    <h2 class="section-title">VPN subscription</h2>
+    <p class="muted">Add this URL in Hiddify, v2rayNG, Clash Meta, or sing-box.</p>
+    {{if .QR}}<img class="qr" width="180" height="180" alt="subscription QR" src="data:image/png;base64,{{.QR}}" />{{end}}
+    <code id="sub">{{.SubURL}}</code>
+    <div class="row">
+      <button type="button" data-copy="{{.SubURL}}">Copy subscription</button>
+      <a class="btn ghost" href="{{.ClashPath}}">Clash</a>
+      <a class="btn ghost" href="{{.SingPath}}">sing-box</a>
+      <a class="btn ghost" href="{{.V2Path}}">v2ray list</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="section-title">VPN configs</h2>
+    {{range .Links}}
+    <div class="cfg">
+      <span class="pill {{.Mode}}">{{.Mode}}</span> {{.Tag}}
+      <span class="uri">{{.URI}}</span>
+      <button type="button" class="ghost" data-copy="{{.URI}}">Copy</button>
+    </div>
+    {{else}}
+    <p class="muted">No VPN inbounds are enabled yet.</p>
+    {{end}}
+  </div>
+</main>
+<script>
+document.querySelectorAll("[data-copy]").forEach(function(b){
+  var label = b.textContent;
+  b.onclick = async function(){
+    try { await navigator.clipboard.writeText(b.getAttribute("data-copy")); b.textContent = "Copied"; setTimeout(function(){ b.textContent = label; }, 1200); }
+    catch(e){ alert(b.getAttribute("data-copy")); }
+  };
+});
+</script>
+</body>
+</html>

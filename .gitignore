@@ -9,3 +9,5 @@ dist-bin/
 *.test
 .env
 .env.local
+web/node_modules/
+web/dist/

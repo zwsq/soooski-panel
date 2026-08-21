@@ -1,4 +1,7 @@
-.PHONY: build test docker
+.PHONY: build test docker web
+
+web:
+	cd web && npm ci && npm run build
 
 build:
 	go build -o soooski ./cmd/soooski
