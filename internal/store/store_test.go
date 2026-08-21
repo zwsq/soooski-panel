@@ -129,3 +129,39 @@ func TestInboundBackfillAndAdminNotReset(t *testing.T) {
 		t.Fatal("env must not overwrite a password set in the panel")
 	}
 }
+
+func TestResetAdminClearsSessions(t *testing.T) {
+	s := testStore(t)
+	a, err := s.FirstAdmin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, err := s.CreateSession(a.ID, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SessionAdmin(tok); err != nil {
+		t.Fatal(err)
+	}
+	hash, err := crypto.HashPassword("brandnew9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.ResetAdmin("root", hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Username != "root" {
+		t.Fatalf("username %q", got.Username)
+	}
+	if _, err := s.AdminByUsername("admin"); err == nil {
+		t.Fatal("old username should be gone")
+	}
+	if _, err := s.SessionAdmin(tok); err == nil {
+		t.Fatal("sessions must be invalid after reset")
+	}
+	again, err := s.AdminByUsername("root")
+	if err != nil || !crypto.CheckPassword(again.PasswordHash, "brandnew9") {
+		t.Fatal(again, err)
+	}
+}

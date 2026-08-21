@@ -288,6 +288,39 @@ func (s *Store) AdminByUsername(username string) (models.Admin, error) {
 	return a, err
 }
 
+func (s *Store) FirstAdmin() (models.Admin, error) {
+	var a models.Admin
+	err := s.db.QueryRow(`SELECT id, username, password_hash FROM admins ORDER BY id LIMIT 1`).
+		Scan(&a.ID, &a.Username, &a.PasswordHash)
+	return a, err
+}
+
+func (s *Store) ClearSessions() error {
+	_, err := s.db.Exec(`DELETE FROM sessions`)
+	return err
+}
+
+// ResetAdmin updates the first admin's username and/or password and drops sessions.
+func (s *Store) ResetAdmin(username, passwordHash string) (models.Admin, error) {
+	a, err := s.FirstAdmin()
+	if err != nil {
+		return a, err
+	}
+	if err := s.UpdateAdmin(a.ID, username, passwordHash); err != nil {
+		return a, err
+	}
+	if err := s.ClearSessions(); err != nil {
+		return a, err
+	}
+	if username != "" {
+		a.Username = username
+	}
+	if passwordHash != "" {
+		a.PasswordHash = passwordHash
+	}
+	return a, nil
+}
+
 func (s *Store) UpdateAdmin(id int64, username, passwordHash string) error {
 	username = strings.TrimSpace(username)
 	if username == "" && passwordHash == "" {

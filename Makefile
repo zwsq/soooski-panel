@@ -5,6 +5,7 @@ build:
 
 test:
 	go test ./...
+	bash -n install.sh scripts/soooski
 
 # local debug image only — VPS should pull ghcr.io/zwsq/soooski-panel
 docker:
