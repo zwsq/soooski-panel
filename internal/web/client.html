@@ -32,7 +32,7 @@
     .card { background: color-mix(in oklab, var(--card) 92%, black); border: 1px solid var(--line); border-radius: 18px; padding: 18px; margin-top: 14px; box-shadow: 0 12px 40px #00040; }
     .stat { font-size: 22px; font-weight: 750; }
     .bar { height: 8px; background: #0b1220; border-radius: 99px; overflow: hidden; margin-top: 10px; }
-    .bar > i { display: block; height: 100%; background: var(--accent); }
+    .bar-fill { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
     button, a.btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 12px; padding: 10px 14px; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; }
     button.ghost, a.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
@@ -56,15 +56,24 @@
       background: radial-gradient(circle, #2AABEE33, transparent 70%);
       pointer-events: none;
     }
-    .hero-grid { display: grid; grid-template-columns: 160px 1fr; gap: 18px; align-items: center; position: relative; }
-    @media (max-width: 640px) { .hero-grid { grid-template-columns: 1fr; justify-items: center; text-align: center; } .hero-grid .row { justify-content: center; } }
-    .tg-logo { width: 28px; height: 28px; display: block; }
-    .kicker-row { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
+    .hero-grid { display: grid; grid-template-columns: 160px 1fr; gap: 18px; align-items: center; position: relative; z-index: 1; }
+    .hero-copy { min-width: 0; }
+    .tg-logo { width: 40px; height: 40px; display: block; flex-shrink: 0; border-radius: 50%; }
+    .kicker-row { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; position: relative; z-index: 1; }
     .kicker { color: var(--tg); font-weight: 800; letter-spacing: .12em; font-size: 11px; text-transform: uppercase; margin: 0; }
     .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
     .meta div { background: #0b1220aa; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
-    .meta b { display: block; font-size: 13px; }
+    .meta b { display: block; font-size: 13px; color: var(--text); }
     .section-title { margin: 0; font-size: 16px; }
+    @media (max-width: 640px) {
+      .hero { text-align: center; }
+      .hero::after { display: none; }
+      .kicker-row { justify-content: center; }
+      .hero-grid { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+      .hero-copy { width: 100%; }
+      .hero-grid .row { justify-content: center; }
+      .meta { grid-template-columns: 1fr; width: min(100%, 280px); margin-left: auto; margin-right: auto; }
+    }
   </style>
 </head>
 <body>
@@ -78,8 +87,15 @@
 
   <div class="card">
     <div class="muted">Traffic</div>
-    <div class="stat">{{.Used}}{{if .Limit}} / {{.Limit}}{{end}}{{if not .Limit}} / unlimited{{end}}</div>
-    {{if .LimitBytes}}<div class="bar"><i style="width:{{.Pct}}%"></i></div>{{end}}
+    {{if .HasLimit}}
+    <div class="stat">{{.Used}} / {{.Limit}}</div>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{.Pct}}" aria-label="Traffic used">
+      <span class="bar-fill" style="width: {{.Pct}}%"></span>
+    </div>
+    {{else}}
+    <div class="stat">{{.Used}}</div>
+    <p class="muted" style="margin:8px 0 0">Unlimited</p>
+    {{end}}
     <p class="muted" style="margin:10px 0 0">{{if .Expire}}Expires {{.Expire}} (UTC){{else}}No expiry{{end}}</p>
   </div>
 
@@ -96,6 +112,35 @@
     </div>
   </div>
 
+  {{if .TelegramEnabled}}
+  <section class="card hero" aria-label="Telegram proxy">
+    <div class="kicker-row">
+      <svg class="tg-logo" viewBox="0 0 240 240" aria-hidden="true">
+        <circle cx="120" cy="120" r="120" fill="#24A1DE"/>
+        <path fill="#c8daea" d="M81.229 128.772l14.237 39.406s1.78 3.687 3.686 3.687 30.255-29.394 30.255-29.394l31.525-60.89L81.229 128.772z"/>
+        <path fill="#a9c6d8" d="M100.106 138.878l-2.733 29.046s-1.144 8.9 7.754 0 17.415-15.763 17.415-15.763"/>
+        <path fill="#fff" d="M81.486 130.178 152.606 83.561s7.258-3.123 5.579 0-4.685 33.256-4.685 33.256L132.467 160.8s-1.239 1.85-3.359.74c-2.081-1.07-36.3-22.286-36.3-22.286s-3.249-2.081.228-4.343c3.489-2.261 38.505-24.357 38.505-24.357s1.78-1.081.949-1.78c-.828-.7-13.229 8.282-37.4 23.319-3.134 1.947-1.4-.228-1.4-.228z"/>
+      </svg>
+      <p class="kicker">Telegram proxy</p>
+    </div>
+    <div class="hero-grid">
+      {{if .TelegramQR}}<img class="qr" width="140" height="140" alt="Telegram proxy QR" src="data:image/png;base64,{{.TelegramQR}}" />{{end}}
+      <div class="hero-copy">
+        <h2 class="section-title">Open in Telegram</h2>
+        <p class="muted" style="margin:6px 0 0">One tap. This proxy is yours only — bytes count toward the traffic quota above.</p>
+        <div class="meta">
+          <div class="muted">Server<b>{{.TelegramServer}}:443</b></div>
+          <div class="muted">Fake TLS<b>{{.TelegramDomain}}</b></div>
+        </div>
+        <div class="row">
+          {{if .TelegramHTTPS}}<a class="btn tg" href="{{.TelegramHTTPS}}" data-open-tg="{{.TelegramTG}}" rel="noopener">Open Telegram</a>{{end}}
+          {{if .TelegramTG}}<button type="button" class="ghost" data-copy="{{.TelegramTG}}">Copy tg:// link</button>{{end}}
+        </div>
+      </div>
+    </div>
+  </section>
+  {{end}}
+
   <div class="card">
     <h2 class="section-title">VPN configs</h2>
     {{range .Links}}
@@ -108,34 +153,6 @@
     <p class="muted">No VPN inbounds are enabled yet.</p>
     {{end}}
   </div>
-
-  {{if .TelegramEnabled}}
-  <section class="card hero" aria-label="Telegram proxy">
-    <div class="kicker-row">
-      <svg class="tg-logo" viewBox="0 0 240 240" aria-hidden="true">
-        <circle cx="120" cy="120" r="120" fill="#2AABEE"/>
-        <path fill="#fff" d="M49.7 120.4c25.5-11.1 42.5-18.4 51-22 24.3-10.1 29.4-11.9 32.7-11.9.7 0 2.3.2 3.4 1.1.9.7 1.1 1.7 1.3 2.4.1.7.3 2.3.2 3.5-1.8 18.9-9.6 64.7-13.6 85.9-1.7 8.9-5 11.9-8.2 12.2-7 .6-12.3-4.6-19-9.6-10.6-7.8-16.5-12.6-26.8-20.2-11.9-8.8-4.2-13.6 2.6-21.5 1.8-2 32.5-29.8 33.1-32.3.1-.3.1-1.5-.6-2.1-.7-.6-1.7-.4-2.5-.2-1.1.2-17.8 11.3-50.3 33.3-4.8 3.3-9.1 4.9-13 4.8-4.3-.1-12.5-2.4-18.6-4.4-7.5-2.4-13.5-3.7-13-7.9.3-2.2 3.3-4.4 9.1-6.7z"/>
-      </svg>
-      <p class="kicker" style="margin:0">Telegram proxy</p>
-    </div>
-    <div class="hero-grid">
-      {{if .TelegramQR}}<img class="qr" width="140" height="140" alt="Telegram proxy QR" src="data:image/png;base64,{{.TelegramQR}}" />{{end}}
-      <div>
-        <h2 class="section-title">Open in Telegram</h2>
-        <p class="muted" style="margin:6px 0 0">One tap. This proxy is yours only — bytes count toward the traffic quota above.</p>
-        <div class="meta">
-          <div class="muted">Server<b>{{.TelegramServer}}:443</b></div>
-          <div class="muted">Fake TLS<b>{{.TelegramDomain}}</b></div>
-        </div>
-        <div class="row">
-          <a class="btn tg" href="{{.TelegramTG}}">Open Telegram</a>
-          <button type="button" class="ghost" data-copy="{{.TelegramTG}}">Copy tg:// link</button>
-          {{if .TelegramHTTPS}}<a class="btn ghost" href="{{.TelegramHTTPS}}">t.me/proxy</a>{{end}}
-        </div>
-      </div>
-    </div>
-  </section>
-  {{end}}
 </main>
 <script>
 document.querySelectorAll("[data-copy]").forEach(function(b){
@@ -144,6 +161,20 @@ document.querySelectorAll("[data-copy]").forEach(function(b){
     try { await navigator.clipboard.writeText(b.getAttribute("data-copy")); b.textContent = "Copied"; setTimeout(function(){ b.textContent = label; }, 1200); }
     catch(e){ alert(b.getAttribute("data-copy")); }
   };
+});
+document.querySelectorAll("[data-open-tg]").forEach(function(a){
+  a.addEventListener("click", function(e){
+    var tg = a.getAttribute("data-open-tg");
+    if (!tg) return;
+    e.preventDefault();
+    var fallback = a.getAttribute("href");
+    var timer = setTimeout(function(){
+      if (fallback) window.location.href = fallback;
+    }, 500);
+    window.addEventListener("pagehide", function(){ clearTimeout(timer); }, { once: true });
+    window.addEventListener("blur", function(){ clearTimeout(timer); }, { once: true });
+    window.location.href = tg;
+  });
 });
 </script>
 </body>

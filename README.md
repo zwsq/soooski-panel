@@ -16,7 +16,7 @@ The container **is** the panel and the server. Mount `/data` and keep it.
 - **SNI mux on TCP 443** — your domain → HTTPS panel + path mux; Telegram fake domain → MTProto; other SNI → REALITY (same idea as Hiddify/HAProxy)
 - **Let's Encrypt** — HTTP-01 on port 80, auto-renew, dashboard status; issued cert is used by the panel and by TLS inbounds
 - **Secret admin and client paths** — not on a separate port; unknown URLs look like default nginx
-- **User page** — open a subscription URL in a browser: traffic, VPN subscription and configs first, then Telegram proxy (logo, QR, Open Telegram). Apps still get the raw sub.
+- **User page** — open a subscription URL in a browser: traffic, VPN subscription, Telegram proxy, then VPN configs. Apps still get the raw sub.
 - **Traffic accounting** — per-user via sing-box Clash API outbound chains, plus Telegram MTProto bytes on that user's secret
 - **Admin account** — username, password, and the secret **admin path** are changeable in Settings; `soooski reset-admin` recovers a forgotten login (env vars are first boot only)
 

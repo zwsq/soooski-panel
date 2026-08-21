@@ -88,6 +88,9 @@ func TestLoginUsersSub(t *testing.T) {
 	if res.StatusCode != 200 || !bytes.Contains(body, []byte("soooski")) {
 		t.Fatalf("portal %d %s", res.StatusCode, body)
 	}
+	if !bytes.Contains(body, []byte("Unlimited")) || bytes.Contains(body, []byte(`role="progressbar"`)) {
+		t.Fatalf("unlimited traffic should skip the bar: %s", body)
+	}
 
 	hz, err := http.Get(ts.URL + "/healthz")
 	if err != nil || hz.StatusCode != 200 {
@@ -313,9 +316,16 @@ func TestQuotaReenableAndAdminPath(t *testing.T) {
 		t.Fatalf("client page telegram %d %s", res.StatusCode, portal)
 	}
 	tgAt := bytes.Index(portal, []byte("Telegram proxy"))
+	subAt := bytes.Index(portal, []byte("VPN subscription"))
 	vpnAt := bytes.Index(portal, []byte("VPN configs"))
-	if tgAt < 0 || vpnAt < 0 || vpnAt > tgAt {
-		t.Fatalf("VPN configs should be above telegram: tg=%d vpn=%d", tgAt, vpnAt)
+	if subAt < 0 || tgAt < 0 || vpnAt < 0 || !(subAt < tgAt && tgAt < vpnAt) {
+		t.Fatalf("expected subscription, telegram, then configs: sub=%d tg=%d vpn=%d", subAt, tgAt, vpnAt)
+	}
+	if !bytes.Contains(portal, []byte(`href="https://t.me/proxy`)) || bytes.Contains(portal, []byte("ZgotmplZ")) {
+		t.Fatalf("Open Telegram should be a t.me https link, got %s", portal)
+	}
+	if !bytes.Contains(portal, []byte("110 B / 10 GB")) || !bytes.Contains(portal, []byte(`class="bar-fill" style="width: 1%"`)) {
+		t.Fatalf("limited traffic should show used/total and a filled bar: %s", portal)
 	}
 
 	req, _ = http.NewRequest(http.MethodPut, ts.URL+"/api/users/"+strconv.FormatInt(user.ID, 10), bytes.NewBufferString(`{"telegram_regenerate":true}`))
