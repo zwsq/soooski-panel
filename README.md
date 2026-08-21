@@ -28,37 +28,43 @@ You need a Linux VPS. Ports **80** and **443** must be free. Do **not** compile 
 
 ### Automatic
 
-One line. Installs Docker if needed, puts the `soooski` CLI in `/usr/local/bin`, and starts the panel under `/opt/soooski`.
+One line. Puts `soooski` in `/usr/local/bin` and opens a numbered menu. Choose **1** to install (Docker, image, domain, admin password). Later, run `sudo soooski` again for update, logs, URL, forgot-password, and the rest.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zwsq/soooski-panel/release/install.sh | sudo bash
 ```
 
-With a domain (recommended):
+The menu reads the keyboard even when the script is piped (`/dev/tty`). Typical flow:
+
+```
+  1) Install panel
+  2) Update panel
+  3) Start
+  4) Stop
+  5) Restart
+  6) Status
+  7) Show admin URL
+  8) View logs
+  9) Reset admin username / password
+ 10) Reconfigure domain / Let's Encrypt email
+ 11) Uninstall
+  0) Exit
+```
+
+Unattended (no menu) if you already know the flags:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zwsq/soooski-panel/release/install.sh | sudo bash -s -- \
-  --host vpn.example.com --email you@example.com
+  --host vpn.example.com --email you@example.com --yes
 ```
 
-If you pipe to bash, there are no prompts: a random admin password is printed once. To be asked for host / email / password, download then run:
+After install, the same menu is just:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zwsq/soooski-panel/release/install.sh -o /tmp/soooski-install.sh
-sudo bash /tmp/soooski-install.sh
+sudo soooski
 ```
 
-After that, everything is the CLI:
-
-```bash
-soooski url              # secret admin URL (also /opt/soooski/data/admin-url.txt)
-soooski logs -f
-soooski update           # new image + CLI
-soooski restart
-soooski reset-admin      # forgot username/password (prints a new password once)
-soooski reset-admin -user admin -password 'your-new-pass'
-soooski stop             # keeps /opt/soooski/data
-```
+Subcommands still work for scripts (`soooski url`, `soooski logs -f`, `soooski reset-admin -password '...'`).
 
 `network_mode: host` is intentional: UDP 443, WireGuard, and extra REALITY ports bind on the VPS. Bookmark the admin URL.
 
@@ -85,13 +91,13 @@ docker compose logs -f
 
 Or clone this repo and run `docker compose` from the root (same files).
 
-Upgrade later: `soooski update`, or `docker compose pull && docker compose up -d`.
+Upgrade later: `sudo soooski` → **2) Update**, or `docker compose pull && docker compose up -d`.
 
 `/opt/soooski/data` (or `./data`) is kept. New protocol tags are inserted on boot; existing users and settings are not wiped.
 
 If `docker pull` says denied, open the GHCR package → **Package settings** → Public, or log in with a `read:packages` token.
 
-Forgot the admin password (manual install, no host CLI):
+Forgot the admin password: `sudo soooski` → **9**, or without the host CLI:
 
 ```bash
 docker exec soooski soooski reset-admin
