@@ -20,11 +20,25 @@ type prefixConn struct {
 
 func (c *prefixConn) Read(p []byte) (int, error) { return c.r.Read(p) }
 
+func innerTCP(c net.Conn) *net.TCPConn {
+	for c != nil {
+		switch t := c.(type) {
+		case *net.TCPConn:
+			return t
+		case *prefixConn:
+			c = t.Conn
+		default:
+			return nil
+		}
+	}
+	return nil
+}
+
 const maxTLSRecord = 16 * 1024
 
 func setTCPOpts(c net.Conn) {
-	t, ok := c.(*net.TCPConn)
-	if !ok {
+	t := innerTCP(c)
+	if t == nil {
 		return
 	}
 	_ = t.SetNoDelay(true)
@@ -158,14 +172,14 @@ func proxyTCP(client net.Conn, addr string) {
 	done := make(chan struct{}, 2)
 	go func() {
 		_, _ = io.Copy(backend, client)
-		if t, ok := backend.(*net.TCPConn); ok {
+		if t := innerTCP(backend); t != nil {
 			_ = t.CloseWrite()
 		}
 		done <- struct{}{}
 	}()
 	go func() {
 		_, _ = io.Copy(client, backend)
-		if t, ok := client.(*net.TCPConn); ok {
+		if t := innerTCP(client); t != nil {
 			_ = t.CloseWrite()
 		}
 		done <- struct{}{}

@@ -12,8 +12,9 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
-import { bytes, expireProgress, trafficLimitFrom, trafficParts, trafficProgress, userStatus, ymd } from "@/lib/format";
+import { bytes, remainingDays, trafficLimitFrom, trafficParts, trafficProgress, userStatus, ymd } from "@/lib/format";
 import type { Link, User } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 function CopyBtn({ text, label = "Copy" }: { text: string; label?: string }) {
   return (
@@ -157,17 +158,13 @@ export function UsersPage() {
                     <TableCell>
                       <Badge variant={st.cls === "ok" ? "ok" : "bad"}>{st.t}</Badge>
                     </TableCell>
-                    <TableCell className="min-w-40">
+                    <TableCell>
                       {(() => {
-                        const exp = expireProgress(u.created_at, u.expire_at);
-                        if (!exp) return <span className="text-muted-foreground">No expiry</span>;
+                        const left = remainingDays(u.expire_at);
+                        if (left == null) return <span className="text-muted-foreground">No expiry</span>;
+                        if (left < 0) return <span className="tabular-nums text-muted-foreground">Expired</span>;
                         return (
-                          <div className="grid gap-1">
-                            <span className="text-xs tabular-nums">
-                              {exp.left < 0 ? "Expired" : `${exp.left}d left`}
-                            </span>
-                            <Progress value={exp.pct} />
-                          </div>
+                          <span className={cn("tabular-nums", left < 10 && "text-orange-400")}>{left}d left</span>
                         );
                       })()}
                     </TableCell>

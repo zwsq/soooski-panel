@@ -126,6 +126,23 @@ func (in Inbound) H2C() bool {
 	return in.Transport == TransportGRPC || in.Transport == TransportH2 || in.Transport == TransportXHTTP
 }
 
+// XrayShareable is true when v2rayN / Xray-core can load this inbound.
+// Xray 26 REALITY only allows RAW (Vision), XHTTP, and gRPC — not HTTPUpgrade or
+// sing-box HTTP/2. Our "xhttp" inbound is sing-box `http` transport, not native
+// Xray xHTTP. ShadowTLS has no ss:// form Xray understands (Clash/sing-box only).
+func (in Inbound) XrayShareable() bool {
+	if in.Protocol == ProtoShadowTLS {
+		return false
+	}
+	if in.Security == SecurityReality {
+		return in.Transport == TransportTCP || in.Transport == TransportGRPC
+	}
+	if in.Transport == TransportH2 || in.Transport == TransportXHTTP {
+		return false
+	}
+	return true
+}
+
 // SingBoxTransport is the sing-box JSON transport type.
 func SingBoxTransport(t string) string {
 	if t == TransportXHTTP {

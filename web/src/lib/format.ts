@@ -44,16 +44,6 @@ export function remainingDays(expire?: string | null) {
   return Math.ceil((end - Date.now()) / 86_400_000);
 }
 
-export function expireProgress(created?: string | null, expire?: string | null) {
-  const left = remainingDays(expire);
-  if (left == null) return null;
-  const end = Date.parse(expire as string);
-  const start = created ? Date.parse(created) : NaN;
-  const total = Number.isFinite(start) && end > start ? end - start : 30 * 86_400_000;
-  const pct = total > 0 ? Math.min(100, Math.max(0, ((end - Date.now()) / total) * 100)) : 0;
-  return { left, pct };
-}
-
 export function trafficProgress(up = 0, down = 0, limit = 0) {
   const used = Number(up || 0) + Number(down || 0);
   if (!limit) return { used, limit: 0, pct: null as number | null };

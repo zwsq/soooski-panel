@@ -113,6 +113,44 @@ func TestPeekSNIPreservesClientHelloBytes(t *testing.T) {
 	}
 }
 
+func TestInnerTCPUnwrapsPrefix(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	done := make(chan net.Conn, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			done <- nil
+			return
+		}
+		done <- c
+	}()
+	c, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	srv := <-done
+	if srv == nil {
+		t.Fatal("accept")
+	}
+	defer srv.Close()
+	pc := &prefixConn{Conn: srv, r: srv}
+	got := innerTCP(pc)
+	if got == nil {
+		t.Fatal("prefixConn should unwrap to *net.TCPConn")
+	}
+	if got.RemoteAddr().String() != srv.RemoteAddr().String() {
+		t.Fatalf("inner %s vs %s", got.RemoteAddr(), srv.RemoteAddr())
+	}
+	if innerTCP(got) != got {
+		t.Fatal("tcp unwrap")
+	}
+}
+
 type errString string
 
 func (e errString) Error() string { return string(e) }

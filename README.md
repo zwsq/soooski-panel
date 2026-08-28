@@ -179,7 +179,7 @@ Port 80 must be reachable from the internet for issuance.
 Each user has `/{client_path}/{token}`:
 
 - **Browser** → usage, expiry, QR, copyable configs
-- v2rayNG / default app → base64 URI list
+- v2rayNG / v2rayN / default app → base64 URI list of configs **Xray-core can load**. ShadowTLS, REALITY+HTTPUpgrade, and sing-box HTTP/2 / xHTTP stand-ins are omitted: Xray 26 rejects them (`REALITY only supports RAW, XHTTP and gRPC`; `type=http` is HTTP/1.1 camouflage, not H2). Clash and sing-box still get the full matrix.
 - Clash Meta / Stash → YAML
 - sing-box / Hiddify app → JSON
 
