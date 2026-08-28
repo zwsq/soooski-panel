@@ -26,6 +26,7 @@ type Server struct {
 	Supervisor *supervisor.Supervisor
 	Apply      func() error
 	DataDir    string
+	LogLevel   string
 	TLSEmail   func(string)
 	Certs      func() []models.CertStatus
 	IssueCerts func() error
@@ -705,7 +706,7 @@ func (s *Server) compile() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return core.Compile(core.CompileInput{Settings: st, Users: users, Inbounds: inbounds})
+	return core.Compile(core.CompileInput{Settings: st, Users: users, Inbounds: inbounds, LogLevel: s.LogLevel})
 }
 
 func (s *Server) subUser(w http.ResponseWriter, r *http.Request) (models.User, models.Settings, []models.Domain, []models.Inbound, bool) {

@@ -127,6 +127,7 @@ func vlessURI(u models.User, spec models.Inbound, st models.Settings, host, sni 
 		q.Set("sid", st.RealityShortID)
 		if spec.Transport == models.TransportTCP {
 			q.Set("flow", "xtls-rprx-vision")
+			q.Set("headerType", "none")
 		}
 		setPathQuery(q, spec, st.RealityServerName)
 	case spec.Mode == models.ModeCDN:

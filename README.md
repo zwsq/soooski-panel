@@ -208,4 +208,5 @@ Do **not** set the fake domain to your panel hostname or the REALITY handshake d
 | `SOOOSKI_DATA_DIR` | `/data` | path inside the container |
 | `SOOOSKI_LISTEN_HTTP` | `:80` | |
 | `SOOOSKI_LISTEN_HTTPS` | `:443` | |
+| `SOOOSKI_LOG_LEVEL` | `info` | sing-box + process logs (`trace`/`debug`/`info`/`warn`/`error`/`off`). `info` logs every inbound connection. |
 | `TZ` | `UTC` | |

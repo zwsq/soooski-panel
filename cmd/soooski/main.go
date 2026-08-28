@@ -45,7 +45,7 @@ func runServer() {
 		if err != nil {
 			return err
 		}
-		raw, err := core.Compile(core.CompileInput{Settings: settings, Users: users, Inbounds: inbounds})
+		raw, err := core.Compile(core.CompileInput{Settings: settings, Users: users, Inbounds: inbounds, LogLevel: cfg.LogLevel})
 		if err != nil {
 			return err
 		}
@@ -66,6 +66,7 @@ func runServer() {
 		Supervisor: sup,
 		Apply:      apply,
 		DataDir:    cfg.DataDir,
+		LogLevel:   cfg.LogLevel,
 	}
 	ing := ingress.New(apiSrv.Handler(), func() []ingress.Route {
 		inbounds, err := st.Inbounds()

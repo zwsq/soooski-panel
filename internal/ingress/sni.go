@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -20,9 +21,100 @@ type prefixConn struct {
 
 func (c *prefixConn) Read(p []byte) (int, error) { return c.r.Read(p) }
 
+const maxTLSRecord = 16 * 1024
+
+func setTCPOpts(c net.Conn) {
+	t, ok := c.(*net.TCPConn)
+	if !ok {
+		return
+	}
+	_ = t.SetNoDelay(true)
+	_ = t.SetKeepAlive(true)
+	_ = t.SetKeepAlivePeriod(30 * time.Second)
+}
+
+func recvPeek(tcp *net.TCPConn, buf []byte) (int, error) {
+	raw, err := tcp.SyscallConn()
+	if err != nil {
+		return 0, err
+	}
+	var n int
+	var sysErr error
+	if err := raw.Read(func(fd uintptr) bool {
+		n, _, sysErr = syscall.Recvfrom(int(fd), buf, syscall.MSG_PEEK)
+		return true
+	}); err != nil {
+		return n, err
+	}
+	if sysErr != nil {
+		return n, sysErr
+	}
+	if n < 0 {
+		n = 0
+	}
+	return n, nil
+}
+
+func peekSNIFromBuf(buf []byte, n int) (sni string, need int, ok bool) {
+	if n < 5 {
+		return "", 5, false
+	}
+	if buf[0] != 0x16 {
+		return "", 0, true
+	}
+	recLen := int(binary.BigEndian.Uint16(buf[3:5]))
+	if recLen < 0 || recLen > maxTLSRecord {
+		return "", 0, true
+	}
+	need = 5 + recLen
+	if n < need {
+		return "", need, false
+	}
+	return sniFromHandshake(buf[5:need]), 0, true
+}
+
+// peekSNI reads SNI without consuming the ClientHello when the conn is TCP
+// (MSG_PEEK). REALITY authenticates the ClientHello bytes; a userspace
+// read-and-replay used to make sing-box log "processed invalid connection".
 func peekSNI(c net.Conn, timeout time.Duration) (sni string, wrapped net.Conn, err error) {
 	_ = c.SetReadDeadline(time.Now().Add(timeout))
 	defer func() { _ = c.SetReadDeadline(time.Time{}) }()
+	if tcp, ok := c.(*net.TCPConn); ok {
+		sni, err = peekSNITCP(tcp, timeout)
+		if err == nil {
+			return sni, c, nil
+		}
+	}
+	return peekSNIConsume(c)
+}
+
+func peekSNITCP(tcp *net.TCPConn, timeout time.Duration) (string, error) {
+	deadline := time.Now().Add(timeout)
+	buf := make([]byte, maxTLSRecord+5)
+	for time.Now().Before(deadline) {
+		n, err := recvPeek(tcp, buf)
+		if err != nil {
+			if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+				time.Sleep(5 * time.Millisecond)
+				continue
+			}
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
+				time.Sleep(5 * time.Millisecond)
+				continue
+			}
+			return "", err
+		}
+		sni, _, ok := peekSNIFromBuf(buf, n)
+		if ok {
+			return sni, nil
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return "", errors.New("timeout peeking SNI")
+}
+
+func peekSNIConsume(c net.Conn) (sni string, wrapped net.Conn, err error) {
 	hdr := make([]byte, 5)
 	if _, err = io.ReadFull(c, hdr); err != nil {
 		return "", nil, err
@@ -32,7 +124,7 @@ func peekSNI(c net.Conn, timeout time.Duration) (sni string, wrapped net.Conn, e
 		return "", wrapped, nil
 	}
 	n := int(binary.BigEndian.Uint16(hdr[3:5]))
-	if n < 0 || n > 16*1024 {
+	if n < 0 || n > maxTLSRecord {
 		return "", nil, errors.New("bad tls record")
 	}
 	rest := make([]byte, n)
@@ -108,14 +200,29 @@ func sniFromHandshake(msg []byte) string {
 
 func proxyTCP(client net.Conn, addr string) {
 	defer client.Close()
+	setTCPOpts(client)
 	backend, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
 		return
 	}
 	defer backend.Close()
+	setTCPOpts(backend)
 	done := make(chan struct{}, 2)
-	go func() { _, _ = io.Copy(backend, client); done <- struct{}{} }()
-	go func() { _, _ = io.Copy(client, backend); done <- struct{}{} }()
+	go func() {
+		_, _ = io.Copy(backend, client)
+		if t, ok := backend.(*net.TCPConn); ok {
+			_ = t.CloseWrite()
+		}
+		done <- struct{}{}
+	}()
+	go func() {
+		_, _ = io.Copy(client, backend)
+		if t, ok := client.(*net.TCPConn); ok {
+			_ = t.CloseWrite()
+		}
+		done <- struct{}{}
+	}()
+	<-done
 	<-done
 }
 

@@ -85,9 +85,53 @@ func TestCompileIncludesDirectAndCDN(t *testing.T) {
 	if !strings.Contains(s, "reality") {
 		t.Fatal("missing reality")
 	}
+	foundReality := false
+	for _, ib := range cfg["inbounds"].([]any) {
+		m := ib.(map[string]any)
+		if m["tag"] != "vless-reality" {
+			continue
+		}
+		foundReality = true
+		if _, ok := m["sniff"]; ok {
+			t.Fatal("REALITY vision inbound must not sniff")
+		}
+		tls := m["tls"].(map[string]any)
+		reality := tls["reality"].(map[string]any)
+		ids, _ := reality["short_id"].([]any)
+		var got []string
+		for _, id := range ids {
+			got = append(got, id.(string))
+		}
+		if strings.Join(got, ",") != ",abcd1234" {
+			t.Fatalf("short_id %v", got)
+		}
+	}
+	if !foundReality {
+		t.Fatal("missing vless-reality inbound")
+	}
 	rawAll := string(raw)
 	if !strings.Contains(rawAll, `"auth_user"`) || !strings.Contains(rawAll, "user-alice") {
 		t.Fatalf("expected per-user outbound for traffic accounting:\n%s", rawAll)
+	}
+}
+
+func TestLogLevel(t *testing.T) {
+	in := sampleInput()
+	in.LogLevel = "warn"
+	raw, err := Compile(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"level": "warn"`) {
+		t.Fatalf("log level: %s", raw)
+	}
+	in.LogLevel = "warning"
+	raw, err = Compile(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"level": "warn"`) {
+		t.Fatalf("warning alias: %s", raw)
 	}
 }
 
