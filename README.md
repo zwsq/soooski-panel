@@ -13,7 +13,7 @@ The container **is** the panel and the server. Mount `/data` and keep it.
 - **Direct** — REALITY (Vision, gRPC, HTTP/2, xHTTP, HTTPUpgrade), Hysteria2, TUIC v5, ShadowTLS+SS2022, WireGuard, VLESS/VMess/Trojan TCP+TLS, and the same HTTP transports path-muxed on 443
 - **CDN** — VLESS/VMess/Trojan over WebSocket, gRPC, HTTPUpgrade, HTTP/2, and xHTTP behind Cloudflare / Arvan / Gcore (plus Flexible HTTP on port 80)
 - Optional **Telegram MTProto** FakeTLS — **per user** secret, traffic counted toward that user's quota
-- **SNI mux on TCP 443** — your domain → HTTPS panel + path mux; Telegram fake domain → MTProto; REALITY dest SNI → vision; other SNI → camouflage
+- **SNI mux on TCP 443** — your domain → HTTPS panel + path mux; Telegram fake domain → MTProto; other SNI → REALITY
 - **Let's Encrypt** — HTTP-01 on port 80, auto-renew, dashboard status; issued cert is used by the panel and by TLS inbounds
 - **Secret admin and client paths** — not on a separate port; unknown URLs look like default nginx
 - **User page** — open a subscription URL in a browser: traffic, VPN subscription, Telegram proxy, then VPN configs. Apps still get the raw sub.
@@ -156,7 +156,7 @@ Add domains in the panel.
 
 **HTTP/2 and xHTTP:** Hiddify `h2` and `xttp`/`xHTTP` both use sing-box 1.11 `http` transport. Share links are `type=http`. Native Xray split-HTTP is not in this core. SSH is not included.
 
-Internet scanners hitting 443 with random SNI see the panel camouflage page. Only the configured REALITY dest SNI is forwarded to vision.
+Internet scanners hitting 443 with random SNI are forwarded to REALITY. That is expected. REALITY clients must use the configured dest as SNI (re-import the share link after a dest change).
 
 ## Panel HTTPS
 
@@ -165,8 +165,7 @@ Internet scanners hitting 443 with random SNI see the panel camouflage page. Onl
 | `public_host` or a domain in the panel | HTTPS: admin UI, client subs, path-muxed proxies |
 | An IP, or empty | HTTPS panel (`https://IP/`) |
 | Telegram fake domain (default `www.cloudflare.com`) when Telegram is enabled | MTProto (mtg on `127.0.0.1:1001`) |
-| Configured REALITY dest (default `gateway.icloud.com`) | REALITY |
-| Anything else | HTTPS camouflage |
+| Anything else (including the REALITY dest, default `gateway.icloud.com`) | REALITY |
 
 Certificates:
 

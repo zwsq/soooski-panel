@@ -8,32 +8,40 @@ import (
 	"time"
 )
 
-func tlsClientHello(sni string) []byte {
+func tlsClientHelloSID(sni string, sidLen int) []byte {
 	var hello []byte
-	hello = append(hello, 0x01)             // handshake type ClientHello
-	hello = append(hello, 0, 0, 0)          // length placeholder
-	hello = append(hello, 0x03, 0x03)       // version TLS 1.2
+	hello = append(hello, 0x01)
+	hello = append(hello, 0, 0, 0)
+	hello = append(hello, 0x03, 0x03)
 	hello = append(hello, make([]byte, 32)...)
-	hello = append(hello, 0)                // session id length
-	hello = append(hello, 0, 2, 0x13, 0x01) // one cipher suite
-	hello = append(hello, 1, 0)             // compression
+	hello = append(hello, byte(sidLen))
+	hello = append(hello, make([]byte, sidLen)...)
+	hello = append(hello, 0, 2, 0x13, 0x01)
+	hello = append(hello, 1, 0)
 	var ext []byte
+	// GREASE then SNI, like a Chrome/uTLS/REALITY ClientHello
+	ext = binary.BigEndian.AppendUint16(ext, 0x0a0a)
+	ext = binary.BigEndian.AppendUint16(ext, 0)
 	host := []byte(sni)
-	name := []byte{0} // host_name
+	name := []byte{0}
 	name = binary.BigEndian.AppendUint16(name, uint16(len(host)))
 	name = append(name, host...)
 	list := binary.BigEndian.AppendUint16(nil, uint16(len(name)))
 	list = append(list, name...)
-	ext = binary.BigEndian.AppendUint16(ext, 0) // SNI type
+	ext = binary.BigEndian.AppendUint16(ext, 0)
 	ext = binary.BigEndian.AppendUint16(ext, uint16(len(list)))
 	ext = append(ext, list...)
 	hello = binary.BigEndian.AppendUint16(hello, uint16(len(ext)))
 	hello = append(hello, ext...)
 	binary.BigEndian.PutUint32(hello[0:4], uint32(len(hello)-4))
 	hello[0] = 0x01
-	rec := []byte{0x16, 0x03, 0x03, 0, 0}
+	rec := []byte{0x16, 0x03, 0x01, 0, 0}
 	binary.BigEndian.PutUint16(rec[3:5], uint16(len(hello)))
 	return append(rec, hello...)
+}
+
+func tlsClientHello(sni string) []byte {
+	return tlsClientHelloSID(sni, 0)
 }
 
 func TestPeekSNIFromBuf(t *testing.T) {
@@ -45,9 +53,14 @@ func TestPeekSNIFromBuf(t *testing.T) {
 	if _, need, ok := peekSNIFromBuf(raw[:3], 3); ok || need != 5 {
 		t.Fatalf("partial header need=%d ok=%v", need, ok)
 	}
+	real := tlsClientHelloSID("gateway.icloud.com", 32)
+	sni, _, ok = peekSNIFromBuf(real, len(real))
+	if !ok || sni != "gateway.icloud.com" {
+		t.Fatalf("reality-style hello sni %q ok=%v", sni, ok)
+	}
 }
 
-func TestPeekSNIDoesNotConsumeTCP(t *testing.T) {
+func TestPeekSNIPreservesClientHelloBytes(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +90,7 @@ func TestPeekSNIDoesNotConsumeTCP(t *testing.T) {
 			return
 		}
 		if string(buf) != string(hello) {
-			got <- errString("clienthello bytes changed after peek")
+			got <- errString("clienthello bytes changed after sni read")
 			return
 		}
 		got <- nil

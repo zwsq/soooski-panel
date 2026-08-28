@@ -11,7 +11,7 @@ The first release is 0.1.0.
 - Fix admin navigation, date picker, unlimited crash, and client order
 - Fix client page Telegram placement, Open Telegram, and traffic bar
 - Stop using `www.microsoft.com` as the REALITY handshake dest (certificate record overflow)
-- Only forward the configured REALITY dest SNI to vision
+- Stop sending unknown REALITY ClientHellos to panel TLS (`tls: bad certificate`)
 - Make admin and client usage bars readable on the dark theme
 
 ### Changes

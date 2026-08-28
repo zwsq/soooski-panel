@@ -109,16 +109,22 @@ func TestTelegramSNI(t *testing.T) {
 	if ing.RouteSNI("gateway.icloud.com") != "127.0.0.1:12001" {
 		t.Fatalf("reality SNI: %s", ing.RouteSNI("gateway.icloud.com"))
 	}
-	if ing.RouteSNI("scanner.invalid") != LocalHTTPS {
-		t.Fatalf("unknown SNI must hit camouflage: %s", ing.RouteSNI("scanner.invalid"))
+	if ing.RouteSNI("scanner.invalid") != "127.0.0.1:12001" {
+		t.Fatalf("unknown SNI must hit REALITY, not the panel: %s", ing.RouteSNI("scanner.invalid"))
+	}
+	if ing.RouteSNI("www.microsoft.com") != "127.0.0.1:12001" {
+		t.Fatalf("legacy dest SNI must still hit REALITY: %s", ing.RouteSNI("www.microsoft.com"))
 	}
 	ing.TelegramFn = func() (string, string, bool) { return "www.cloudflare.com", "127.0.0.1:1001", false }
-	if ing.RouteSNI("www.cloudflare.com") != LocalHTTPS {
-		t.Fatal("disabled telegram must not steal SNI for REALITY")
+	if ing.RouteSNI("www.cloudflare.com") != "127.0.0.1:12001" {
+		t.Fatal("disabled telegram must fall through to REALITY")
 	}
 	ing.RealitySNI = nil
-	if ing.RouteSNI("gateway.icloud.com") != LocalHTTPS {
-		t.Fatal("missing dest config must not forward to REALITY")
+	if ing.RouteSNI("gateway.icloud.com") != "127.0.0.1:12001" {
+		t.Fatal("vision still gets unknown SNI when dest callback is unset")
+	}
+	if ing.RouteSNI("") != LocalHTTPS {
+		t.Fatal("empty SNI must stay on the panel")
 	}
 }
 
