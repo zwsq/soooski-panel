@@ -75,15 +75,15 @@ func peekSNIFromBuf(buf []byte, n int) (sni string, need int, ok bool) {
 
 // peekSNI reads SNI without consuming the ClientHello when the conn is TCP
 // (MSG_PEEK). REALITY authenticates the ClientHello bytes; a userspace
-// read-and-replay used to make sing-box log "processed invalid connection".
+// read-and-replay makes sing-box log "processed invalid connection".
+// Non-TCP conns still consume-and-replay. TCP peek failure is not retried
+// that way — close the conn instead of forging a handshake.
 func peekSNI(c net.Conn, timeout time.Duration) (sni string, wrapped net.Conn, err error) {
 	_ = c.SetReadDeadline(time.Now().Add(timeout))
 	defer func() { _ = c.SetReadDeadline(time.Time{}) }()
 	if tcp, ok := c.(*net.TCPConn); ok {
 		sni, err = peekSNITCP(tcp, timeout)
-		if err == nil {
-			return sni, c, nil
-		}
+		return sni, c, err
 	}
 	return peekSNIConsume(c)
 }
@@ -285,19 +285,30 @@ func (i *Ingress) telegramAddr(sni string) string {
 	return ""
 }
 
-// RouteSNI is the TCP backend for a ClientHello SNI. LocalHTTPS means the
-// panel / path-mux HTTPS listener; anything else is dialed as host:port.
-func (i *Ingress) RouteSNI(sni string) string {
-	if i.Ours(sni) {
-		return LocalHTTPS
+func (i *Ingress) realityDest() string {
+	if i == nil || i.RealitySNI == nil {
+		return ""
 	}
-	if addr := i.telegramAddr(sni); addr != "" {
-		return addr
-	}
-	if i.RealityAddr != "" {
+	return strings.TrimSpace(i.RealitySNI())
+}
+
+func (i *Ingress) realityAddr() string {
+	if i != nil && i.RealityAddr != "" {
 		return i.RealityAddr
 	}
 	return "127.0.0.1:12001"
+}
+
+// RouteSNI is the TCP backend for a ClientHello SNI. LocalHTTPS means the
+// panel / path-mux HTTPS listener; anything else is dialed as host:port.
+func (i *Ingress) RouteSNI(sni string) string {
+	if addr := i.telegramAddr(sni); addr != "" {
+		return addr
+	}
+	if dest := i.realityDest(); dest != "" && strings.EqualFold(sni, dest) {
+		return i.realityAddr()
+	}
+	return LocalHTTPS
 }
 
 func (i *Ingress) Ours(sni string) bool {
@@ -318,7 +329,7 @@ func (i *Ingress) Ours(sni string) bool {
 
 // ServeSNI listens on TCP addr, sends our-domain (and IP/empty SNI) handshakes
 // to the HTTPS handler (panel + CDN paths), Telegram FakeTLS SNI to mtg, and
-// every other SNI to REALITY.
+// the configured REALITY dest SNI to vision. Unknown SNI is camouflage.
 func (i *Ingress) ServeSNI(addr string, tlsCfg *tls.Config) error {
 	if tlsCfg == nil {
 		return errors.New("tls config required")
@@ -338,10 +349,6 @@ func (i *Ingress) ServeSNI(addr string, tlsCfg *tls.Config) error {
 	}
 	srv := &http.Server{Handler: i, TLSConfig: cfg}
 	go func() { _ = srv.Serve(tls.NewListener(cl, cfg)) }()
-	reality := i.RealityAddr
-	if reality == "" {
-		reality = "127.0.0.1:12001"
-	}
 	for {
 		c, err := ln.Accept()
 		if err != nil {
@@ -355,16 +362,13 @@ func (i *Ingress) ServeSNI(addr string, tlsCfg *tls.Config) error {
 				return
 			}
 			dest := i.RouteSNI(sni)
-			if dest == LocalHTTPS {
+			if dest == LocalHTTPS || dest == "" {
 				select {
 				case ch <- wc:
 				case <-cl.done:
 					_ = wc.Close()
 				}
 				return
-			}
-			if dest == "" {
-				dest = reality
 			}
 			proxyTCP(wc, dest)
 		}(c)

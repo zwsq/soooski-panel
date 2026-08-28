@@ -27,7 +27,7 @@ func TestVLESSRealityLink(t *testing.T) {
 	if !strings.HasPrefix(reality, "vless://") {
 		t.Fatalf("reality %s", reality)
 	}
-	for _, part := range []string{"security=reality", "pbk=pub", "sid=abcd1234", "flow=xtls-rprx-vision", "headerType=none", ":443"} {
+	for _, part := range []string{"security=reality", "pbk=pub", "sid=abcd1234", "flow=xtls-rprx-vision", "headerType=none", ":443", "sni=gateway.icloud.com"} {
 		if !strings.Contains(reality, part) {
 			t.Fatalf("reality missing %s: %s", part, reality)
 		}

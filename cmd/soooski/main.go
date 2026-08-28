@@ -101,6 +101,13 @@ func runServer() {
 		return out
 	}
 	ing.RealityAddr = "127.0.0.1:12001"
+	ing.RealitySNI = func() string {
+		s, err := st.Settings()
+		if err != nil {
+			return ""
+		}
+		return s.RealityDest()
+	}
 	ing.TelegramFn = func() (string, string, bool) {
 		s, err := st.Settings()
 		if err != nil || !s.TelegramEnabled {

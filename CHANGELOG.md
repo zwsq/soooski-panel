@@ -10,6 +10,9 @@ The first release is 0.1.0.
 ### Bug Fixes
 - Fix admin navigation, date picker, unlimited crash, and client order
 - Fix client page Telegram placement, Open Telegram, and traffic bar
+- Stop using `www.microsoft.com` as the REALITY handshake dest (certificate record overflow)
+- Only forward the configured REALITY dest SNI to vision
+- Make admin and client usage bars readable on the dark theme
 
 ### Changes
 - unlink from the fork network and recreate the repository

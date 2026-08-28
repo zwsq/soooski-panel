@@ -13,7 +13,7 @@ The container **is** the panel and the server. Mount `/data` and keep it.
 - **Direct** — REALITY (Vision, gRPC, HTTP/2, xHTTP, HTTPUpgrade), Hysteria2, TUIC v5, ShadowTLS+SS2022, WireGuard, VLESS/VMess/Trojan TCP+TLS, and the same HTTP transports path-muxed on 443
 - **CDN** — VLESS/VMess/Trojan over WebSocket, gRPC, HTTPUpgrade, HTTP/2, and xHTTP behind Cloudflare / Arvan / Gcore (plus Flexible HTTP on port 80)
 - Optional **Telegram MTProto** FakeTLS — **per user** secret, traffic counted toward that user's quota
-- **SNI mux on TCP 443** — your domain → HTTPS panel + path mux; Telegram fake domain → MTProto; other SNI → REALITY (same idea as Hiddify/HAProxy)
+- **SNI mux on TCP 443** — your domain → HTTPS panel + path mux; Telegram fake domain → MTProto; REALITY dest SNI → vision; other SNI → camouflage
 - **Let's Encrypt** — HTTP-01 on port 80, auto-renew, dashboard status; issued cert is used by the panel and by TLS inbounds
 - **Secret admin and client paths** — not on a separate port; unknown URLs look like default nginx
 - **User page** — open a subscription URL in a browser: traffic, VPN subscription, Telegram proxy, then VPN configs. Apps still get the raw sub.
@@ -151,12 +151,12 @@ Enable or disable each inbound in the panel. Path-based protocols exist twice (d
 
 Add domains in the panel.
 
-- **direct** — A record to this machine. Used for REALITY / Hysteria2 / TUIC / ShadowTLS / WireGuard / raw TLS, and for path-muxed WS/gRPC/H2/HTTPUpgrade/xHTTP with your origin SNI on 443. REALITY handshake dest defaults to `www.microsoft.com`. Dest lookups are **IPv4-only** so a VPS without working IPv6 does not fail cloning that site.
+- **direct** — A record to this machine. Used for REALITY / Hysteria2 / TUIC / ShadowTLS / WireGuard / raw TLS, and for path-muxed WS/gRPC/H2/HTTPUpgrade/xHTTP with your origin SNI on 443. REALITY handshake dest defaults to `gateway.icloud.com` (`www.microsoft.com` overflows REALITY's 8KB certificate buffer). Dest lookups are **IPv4-only** so a VPS without working IPv6 does not fail cloning that site.
 - **cdn** — orange-cloud (or Arvan/Gcore). Origin **443** (Full TLS) or **80** (Flexible). Share links use the CDN hostname on 443. WS/HTTPUpgrade pin `alpn=http/1.1` so v2rayNG does not try HTTP/2 and fail the upgrade. gRPC and H2 use `h2`.
 
 **HTTP/2 and xHTTP:** Hiddify `h2` and `xttp`/`xHTTP` both use sing-box 1.11 `http` transport. Share links are `type=http`. Native Xray split-HTTP is not in this core. SSH is not included.
 
-Internet scanners hitting 443 with random SNI are forwarded to REALITY. That is expected.
+Internet scanners hitting 443 with random SNI see the panel camouflage page. Only the configured REALITY dest SNI is forwarded to vision.
 
 ## Panel HTTPS
 
@@ -165,7 +165,8 @@ Internet scanners hitting 443 with random SNI are forwarded to REALITY. That is 
 | `public_host` or a domain in the panel | HTTPS: admin UI, client subs, path-muxed proxies |
 | An IP, or empty | HTTPS panel (`https://IP/`) |
 | Telegram fake domain (default `www.cloudflare.com`) when Telegram is enabled | MTProto (mtg on `127.0.0.1:1001`) |
-| Anything else (e.g. `www.microsoft.com`) | REALITY |
+| Configured REALITY dest (default `gateway.icloud.com`) | REALITY |
+| Anything else | HTTPS camouflage |
 
 Certificates:
 

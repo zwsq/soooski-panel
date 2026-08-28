@@ -109,7 +109,16 @@ export function SettingsPage() {
           </div>
           <div className="grid gap-1.5">
             <Label>REALITY handshake dest</Label>
-            <Input value={s.reality_server_name} onChange={(e) => setS({ ...s, reality_server_name: e.target.value })} />
+            <Input
+              value={s.reality_server_name}
+              onChange={(e) => setS({ ...s, reality_server_name: e.target.value })}
+              placeholder="gateway.icloud.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              A real HTTPS site whose certificate chain fits in REALITY&apos;s 8KB buffer. Do not use{" "}
+              <code>www.microsoft.com</code> (too large) or the Telegram fake domain. Changing dest
+              changes share-link SNI — users must re-import REALITY.
+            </p>
           </div>
           <div className="grid gap-1.5">
             <Label>Hysteria2 obfs password (empty = off)</Label>

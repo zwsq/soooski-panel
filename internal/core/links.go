@@ -121,7 +121,7 @@ func vlessURI(u models.User, spec models.Inbound, st models.Settings, host, sni 
 	switch {
 	case spec.Security == models.SecurityReality:
 		q.Set("security", "reality")
-		q.Set("sni", st.RealityServerName)
+		q.Set("sni", st.RealityDest())
 		q.Set("fp", "chrome")
 		q.Set("pbk", st.RealityPublicKey)
 		q.Set("sid", st.RealityShortID)
@@ -129,7 +129,7 @@ func vlessURI(u models.User, spec models.Inbound, st models.Settings, host, sni 
 			q.Set("flow", "xtls-rprx-vision")
 			q.Set("headerType", "none")
 		}
-		setPathQuery(q, spec, st.RealityServerName)
+		setPathQuery(q, spec, st.RealityDest())
 	case spec.Mode == models.ModeCDN:
 		q.Set("security", "tls")
 		q.Set("sni", sni)
@@ -377,8 +377,8 @@ func clashProxy(name string, u models.User, spec models.Inbound, st models.Setti
 			if spec.Transport == models.TransportTCP {
 				b.WriteString("    flow: xtls-rprx-vision\n")
 			}
-			fmt.Fprintf(&b, "    servername: %s\n    reality-opts:\n      public-key: %s\n      short-id: %s\n", st.RealityServerName, st.RealityPublicKey, st.RealityShortID)
-			clashTransport(&b, spec, st.RealityServerName)
+			fmt.Fprintf(&b, "    servername: %s\n    reality-opts:\n      public-key: %s\n      short-id: %s\n", st.RealityDest(), st.RealityPublicKey, st.RealityShortID)
+			clashTransport(&b, spec, st.RealityDest())
 		} else if spec.Mode == models.ModeCDN || spec.Security == models.SecurityTLS {
 			fmt.Fprintf(&b, "    tls: true\n    client-fingerprint: chrome\n    servername: %s\n    alpn:\n      - %s\n%s", sni, linkALPN(spec), skip)
 			clashTransport(&b, spec, sni)
@@ -408,7 +408,7 @@ func clashProxy(name string, u models.User, spec models.Inbound, st models.Setti
 	case models.ProtoTUIC:
 		return fmt.Sprintf("  - name: %q\n    type: tuic\n    server: %s\n    port: %d\n    uuid: %s\n    password: %s\n    sni: %s\n    congestion-controller: bbr\n%s", name, host, port, u.UUID, u.Password, sni, skip)
 	case models.ProtoShadowTLS:
-		return fmt.Sprintf("  - name: %q\n    type: ss\n    server: %s\n    port: %d\n    cipher: 2022-blake3-aes-128-gcm\n    password: %s\n    plugin: shadow-tls\n    plugin-opts:\n      host: %s\n      password: %s\n      version: 3\n", name, host, port, st.SSPassword+":"+u.SSPassword, st.RealityServerName, u.Password)
+		return fmt.Sprintf("  - name: %q\n    type: ss\n    server: %s\n    port: %d\n    cipher: 2022-blake3-aes-128-gcm\n    password: %s\n    plugin: shadow-tls\n    plugin-opts:\n      host: %s\n      password: %s\n      version: 3\n", name, host, port, st.SSPassword+":"+u.SSPassword, st.RealityDest(), u.Password)
 	default:
 		return ""
 	}
@@ -538,7 +538,7 @@ func applyClientTLS(ob map[string]any, spec models.Inbound, st models.Settings, 
 	switch {
 	case spec.Security == models.SecurityReality:
 		ob["tls"] = map[string]any{
-			"enabled": true, "server_name": st.RealityServerName,
+			"enabled": true, "server_name": st.RealityDest(),
 			"utls":    map[string]any{"enabled": true, "fingerprint": "chrome"},
 			"reality": map[string]any{"enabled": true, "public_key": st.RealityPublicKey, "short_id": st.RealityShortID},
 		}

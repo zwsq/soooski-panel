@@ -28,7 +28,7 @@ func sampleInput() CompileInput {
 			RealityPrivateKey: "priv",
 			RealityPublicKey:  "pub",
 			RealityShortID:    "abcd1234",
-			RealityServerName: "www.microsoft.com",
+			RealityServerName: models.DefaultRealityDest,
 			SSPassword:        "c3NlcnZlcnBhc3N3b3JkMTI=",
 			WGPrivateKey:      "wpriv",
 			WGPublicKey:       "wpub",
@@ -85,6 +85,9 @@ func TestCompileIncludesDirectAndCDN(t *testing.T) {
 	if !strings.Contains(s, "reality") {
 		t.Fatal("missing reality")
 	}
+	if !strings.Contains(string(raw), `"server": "gateway.icloud.com"`) {
+		t.Fatal("missing REALITY handshake dest")
+	}
 	foundReality := false
 	for _, ib := range cfg["inbounds"].([]any) {
 		m := ib.(map[string]any)
@@ -105,6 +108,10 @@ func TestCompileIncludesDirectAndCDN(t *testing.T) {
 		if strings.Join(got, ",") != ",abcd1234" {
 			t.Fatalf("short_id %v", got)
 		}
+		hs := reality["handshake"].(map[string]any)
+		if hs["server"] != models.DefaultRealityDest {
+			t.Fatalf("handshake dest %v", hs["server"])
+		}
 	}
 	if !foundReality {
 		t.Fatal("missing vless-reality inbound")
@@ -112,6 +119,18 @@ func TestCompileIncludesDirectAndCDN(t *testing.T) {
 	rawAll := string(raw)
 	if !strings.Contains(rawAll, `"auth_user"`) || !strings.Contains(rawAll, "user-alice") {
 		t.Fatalf("expected per-user outbound for traffic accounting:\n%s", rawAll)
+	}
+}
+
+func TestEmptyRealityDestFallsBack(t *testing.T) {
+	in := sampleInput()
+	in.Settings.RealityServerName = ""
+	raw, err := Compile(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"server": "`+models.DefaultRealityDest+`"`) {
+		t.Fatalf("empty dest should fall back:\n%s", raw)
 	}
 }
 
