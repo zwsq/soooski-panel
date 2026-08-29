@@ -194,3 +194,21 @@ func TestMigratesMicrosoftRealityDest(t *testing.T) {
 		t.Fatalf("microsoft dest should migrate, got %q", st.RealityServerName)
 	}
 }
+
+func TestTouchLastSeen(t *testing.T) {
+	s := testStore(t)
+	u, err := s.CreateUser("eve", "", 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.LastSeenAt != nil || u.Online {
+		t.Fatalf("new user should be unseen %#v", u)
+	}
+	if err := s.TouchLastSeen([]int64{u.ID, u.ID, 0}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.UserByID(u.ID)
+	if err != nil || got.LastSeenAt == nil || !got.Online {
+		t.Fatalf("last seen %#v %v", got, err)
+	}
+}

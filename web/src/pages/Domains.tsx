@@ -28,7 +28,7 @@ export function DomainsPage() {
   return (
     <div className="grid gap-4">
       <Card>
-        <CardHeader className="flex-row items-start justify-between gap-3">
+        <CardHeader className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle>Domains</CardTitle>
             <CardDescription>
@@ -36,9 +36,36 @@ export function DomainsPage() {
               / Arvan / Gcore in front of origin 443 or 80).
             </CardDescription>
           </div>
-          <Button onClick={() => setOpen(true)}>Add domain</Button>
+          <Button className="w-full sm:w-auto" onClick={() => setOpen(true)}>
+            Add domain
+          </Button>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="grid gap-3 p-3 md:hidden">
+            {rows.length === 0 && <p className="text-sm text-muted-foreground">No domains yet — Settings → public host is used instead.</p>}
+            {rows.map((d) => (
+              <div key={d.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3">
+                <div className="min-w-0">
+                  <div className="break-all font-medium">{d.domain}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant={d.mode === "cdn" ? "cdn" : "direct"}>{d.mode}</Badge>
+                    <span className="text-muted-foreground">{d.provider}</span>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    await api(`/api/domains/${d.id}`, { method: "DELETE" });
+                    await load();
+                  }}
+                >
+                  Delete
+                </Button>
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -79,6 +106,7 @@ export function DomainsPage() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
       <Dialog open={open} onOpenChange={setOpen}>

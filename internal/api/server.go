@@ -159,9 +159,14 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		ClientPath:  st.ClientPrefix(),
 		DataDir:     s.DataDir,
 	}
+	now := time.Now()
 	for _, u := range users {
+		u.RefreshPresence(now)
 		if u.Active() {
 			d.UsersActive++
+		}
+		if u.Online {
+			d.UsersOnline++
 		}
 		d.TrafficUp += u.TrafficUp
 		d.TrafficDown += u.TrafficDown

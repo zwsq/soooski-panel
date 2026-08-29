@@ -65,6 +65,16 @@ type User struct {
 	Note           string     `json:"note"`
 	TelegramSecret string     `json:"telegram_secret,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
+	LastSeenAt     *time.Time `json:"last_seen_at,omitempty"`
+	Online         bool       `json:"online"`
+}
+
+// OnlineWindow is how recently a user must have been seen in Clash connections
+// (or Telegram byte counters) to count as online.
+const OnlineWindow = 60 * time.Second
+
+func (u *User) RefreshPresence(now time.Time) {
+	u.Online = u.LastSeenAt != nil && now.Sub(*u.LastSeenAt) < OnlineWindow
 }
 
 func (u User) Expired() bool {
@@ -254,6 +264,7 @@ type Dashboard struct {
 	CoreError    string       `json:"core_error,omitempty"`
 	UsersTotal   int          `json:"users_total"`
 	UsersActive  int          `json:"users_active"`
+	UsersOnline  int          `json:"users_online"`
 	TrafficUp    int64        `json:"traffic_up"`
 	TrafficDown  int64        `json:"traffic_down"`
 	TrafficError string       `json:"traffic_error,omitempty"`

@@ -18,6 +18,8 @@ The container **is** the panel and the server. Mount `/data` and keep it.
 - **Secret admin and client paths** — not on a separate port; unknown URLs look like default nginx
 - **User page** — open a subscription URL in a browser: traffic, VPN subscription, Telegram proxy, then VPN configs. Apps still get the raw sub.
 - **Traffic accounting** — per-user via sing-box Clash API outbound chains, plus Telegram MTProto bytes on that user's secret
+- **Online / last seen** — live Clash connections and Telegram byte counters; the admin Users page shows Online or `2 minutes ago`
+- **Mobile admin** — React + Tailwind + shadcn; bottom nav and card lists on phones
 - **Admin account** — username, password, and the secret **admin path** are changeable in Settings; `soooski reset-admin` recovers a forgotten login (env vars are first boot only)
 
 Protocol traffic is [sing-box](https://github.com/SagerNet/sing-box) 1.11.15 as a child process. Telegram FakeTLS is [mtg-multi](https://github.com/MHSanaei/mtg-multi) on localhost, one secret per user. The Go binary is the control plane, CDN path mux, admin UI, and camouflage site.

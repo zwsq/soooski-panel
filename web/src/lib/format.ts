@@ -1,3 +1,5 @@
+import { formatDistanceToNowStrict } from "date-fns";
+
 export function bytes(n: number) {
   n = Number(n || 0);
   const u = ["B", "KB", "MB", "GB", "TB"];
@@ -48,6 +50,16 @@ export function trafficProgress(up = 0, down = 0, limit = 0) {
   const used = Number(up || 0) + Number(down || 0);
   if (!limit) return { used, limit: 0, pct: null as number | null };
   return { used, limit, pct: Math.min(100, Math.max(0, (used / limit) * 100)) };
+}
+
+export type LastSeen = { text: string; kind: "online" | "ago" | "never" };
+
+export function lastSeenLabel(u: { online?: boolean; last_seen_at?: string | null }): LastSeen {
+  if (u.online) return { text: "Online", kind: "online" };
+  if (!u.last_seen_at) return { text: "Never", kind: "never" };
+  const t = Date.parse(u.last_seen_at);
+  if (!Number.isFinite(t)) return { text: "Never", kind: "never" };
+  return { text: formatDistanceToNowStrict(t, { addSuffix: true }), kind: "ago" };
 }
 
 export type UserStatus = { t: "on" | "quota" | "expired" | "off"; cls: "ok" | "bad" };

@@ -28,7 +28,7 @@ export function Login({ onOk }: { onOk: () => void }) {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center p-4">
+    <div className="grid min-h-dvh place-items-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
       <Card className="w-full max-w-sm">
         <CardContent className="pt-8">
           <form className="flex flex-col gap-4" onSubmit={onSubmit}>
@@ -39,14 +39,14 @@ export function Login({ onOk }: { onOk: () => void }) {
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="username">Username</Label>
-              <Input id="username" name="username" autoComplete="username" required />
+              <Input id="username" name="username" className="h-11" autoComplete="username" required />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" name="password" type="password" autoComplete="current-password" required />
+              <Input id="password" name="password" type="password" className="h-11" autoComplete="current-password" required />
             </div>
             {err && <p className="text-sm text-destructive">{err}</p>}
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" className="h-11" disabled={busy}>
               Sign in
             </Button>
           </form>
