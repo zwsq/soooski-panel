@@ -75,8 +75,10 @@ export function SettingsPage() {
               placeholder="www.cloudflare.com"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => saveSettings().catch((e) => toast.error(e.message))}>Save Telegram</Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Button className="w-full sm:w-auto" onClick={() => saveSettings().catch((e) => toast.error(e.message))}>
+              Save Telegram
+            </Button>
             <Button
               variant="outline"
               onClick={async () => {
@@ -137,7 +139,9 @@ export function SettingsPage() {
             <br />
             WireGuard server public key: <code>{s.wg_public_key}</code>
           </p>
-          <Button onClick={() => saveSettings().catch((e) => toast.error(e.message))}>Save & reload core</Button>
+          <Button className="w-full sm:w-auto" onClick={() => saveSettings().catch((e) => toast.error(e.message))}>
+            Save & reload core
+          </Button>
         </CardContent>
       </Card>
 
@@ -167,6 +171,7 @@ export function SettingsPage() {
             <Input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" />
           </div>
           <Button
+            className="w-full sm:w-auto"
             onClick={async () => {
               if (pw && pw !== pw2) {
                 toast.error("Passwords do not match");

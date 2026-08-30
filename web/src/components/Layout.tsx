@@ -1,5 +1,5 @@
-import { LayoutDashboard, Users, Waypoints, Globe, Settings, LogOut, Menu, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { LayoutDashboard, Users, Waypoints, Globe, Settings, LogOut } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -33,55 +33,54 @@ export function Shell({
   onLogout: () => void;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-  const nav = (
-    <nav className="flex flex-col gap-1">
-      {items.map((it) => {
-        const Icon = it.icon;
-        const active = view === it.id;
-        return (
-          <button
-            key={it.id}
-            onClick={() => {
-              onView(it.id);
-              setOpen(false);
-            }}
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-left transition-colors",
-              active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-            )}
-          >
-            <Icon className="size-4" />
-            {it.label}
-          </button>
-        );
-      })}
-    </nav>
-  );
+  const navBtn = (it: (typeof items)[number], compact: boolean) => {
+    const Icon = it.icon;
+    const active = view === it.id;
+    return (
+      <button
+        key={it.id}
+        type="button"
+        onClick={() => onView(it.id)}
+        className={cn(
+          "flex items-center transition-colors",
+          compact
+            ? "min-h-12 flex-col justify-center gap-0.5 px-1 text-[11px]"
+            : "gap-2 rounded-lg px-3 py-2 text-sm text-left",
+          active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+          !compact && (active ? "bg-primary/15" : "hover:bg-secondary"),
+        )}
+      >
+        <Icon className={compact ? "size-5" : "size-4"} />
+        {it.label}
+      </button>
+    );
+  };
+
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[240px_1fr]">
-      <aside className="sticky top-0 hidden h-screen border-r border-border bg-card/40 p-4 md:flex md:flex-col">
+    <div className="min-h-dvh md:grid md:grid-cols-[240px_1fr]">
+      <aside className="sticky top-0 hidden h-dvh border-r border-border bg-card/40 p-4 md:flex md:flex-col">
         <div className="mb-6 flex items-center gap-2 px-2 pt-2">
           <img src="./logo.svg" alt="" className="size-9 rounded-full bg-black" />
           <span className="text-lg font-semibold tracking-wide text-primary">soooski</span>
         </div>
-        {nav}
+        <nav className="flex flex-col gap-1">{items.map((it) => navBtn(it, false))}</nav>
       </aside>
-      <div className="flex min-h-screen flex-col">
-        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setOpen((v) => !v)}>
-            {open ? <X /> : <Menu />}
-          </Button>
+      <div className="flex min-h-dvh flex-col">
+        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
+          <img src="./logo.svg" alt="" className="size-8 rounded-full bg-black md:hidden" />
           <h1 className="text-lg font-semibold capitalize">{items.find((i) => i.id === view)?.label}</h1>
           {coreUp !== null && (
             <Badge variant={coreUp ? "ok" : "bad"}>{coreUp ? "core up" : "core down"}</Badge>
           )}
           <Button variant="outline" size="sm" className="ml-auto" onClick={onLogout}>
-            <LogOut /> Log out
+            <LogOut />
+            <span className="hidden sm:inline">Log out</span>
           </Button>
         </header>
-        {open && <div className="border-b border-border p-3 md:hidden">{nav}</div>}
-        <main className="flex-1 p-4 md:p-8">{children}</main>
+        <main className="flex-1 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:p-8 md:pb-8">{children}</main>
+        <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] md:hidden">
+          {items.map((it) => navBtn(it, true))}
+        </nav>
       </div>
     </div>
   );

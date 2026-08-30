@@ -50,12 +50,13 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-html, body, #root { min-height: 100%; }
+html, body, #root { min-height: 100dvh; }
 body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
 * { border-color: var(--border); }
 

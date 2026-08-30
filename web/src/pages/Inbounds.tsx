@@ -26,6 +26,38 @@ export function InboundsPage() {
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
+        <div className="grid gap-3 p-3 md:hidden">
+          {rows.map((r) => (
+            <div key={r.id} className="rounded-lg border border-border p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <code className="break-all text-sm">{r.tag}</code>
+                  <div className="text-xs text-muted-foreground">
+                    {r.protocol}/{r.transport}/{r.security}
+                  </div>
+                </div>
+                <Switch
+                  checked={r.enable}
+                  onCheckedChange={async (on) => {
+                    try {
+                      await api(`/api/inbounds/${r.id}`, { method: "PUT", json: { enable: on } });
+                      setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, enable: on } : x)));
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "update failed");
+                    }
+                  }}
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <Badge variant={r.mode === "cdn" ? "cdn" : "direct"}>{r.mode}</Badge>
+                <span>port {r.listen_port || r.internal_port}</span>
+                {r.path && <code className="break-all">{r.path}</code>}
+              </div>
+              {r.remark && <p className="mt-1 text-xs text-muted-foreground">{r.remark}</p>}
+            </div>
+          ))}
+        </div>
+        <div className="hidden md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -71,6 +103,7 @@ export function InboundsPage() {
             ))}
           </TableBody>
         </Table>
+        </div>
       </CardContent>
     </Card>
   );

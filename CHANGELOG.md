@@ -26,6 +26,8 @@ The first release is 0.1.0.
 - Add host CLI, one-line install, and reset-admin
 - Make the host CLI a numbered interactive menu
 - Rebuild admin UI with React/shadcn and put Telegram first on the client page
+- Mobile admin: bottom navigation, card lists, sheet dialogs
+- Show who is online and last seen (2 minutes ago, 2 days ago, …) from live Clash / Telegram traffic
 
 ### Miscellaneous
 - chore:‌ swap logo

@@ -153,16 +153,25 @@ func runServer() {
 		defer t.Stop()
 		for range t.C {
 			var deltas []supervisor.TrafficDelta
-			if d, err := counter.Poll(); err == nil {
+			var seen []int64
+			var liveNames []string
+			if d, live, err := counter.Poll(); err == nil {
 				deltas = append(deltas, d...)
+				for _, p := range live {
+					if p.ID > 0 {
+						seen = append(seen, p.ID)
+					} else if p.User != "" {
+						liveNames = append(liveNames, p.User)
+					}
+				}
 			}
 			if d, err := tgTraffic.Poll(); err == nil {
 				for _, x := range d {
 					deltas = append(deltas, supervisor.TrafficDelta{ID: x.ID, Up: x.Up, Down: x.Down})
+					if x.ID > 0 {
+						seen = append(seen, x.ID)
+					}
 				}
-			}
-			if len(deltas) == 0 {
-				continue
 			}
 			users, err := st.Users()
 			if err != nil {
@@ -172,8 +181,20 @@ func runServer() {
 			for _, u := range users {
 				idx[u.Username] = u.ID
 			}
+			for _, name := range liveNames {
+				if id, ok := idx[name]; ok {
+					seen = append(seen, id)
+				}
+			}
+			_ = st.TouchLastSeen(seen)
+			if len(deltas) == 0 {
+				continue
+			}
 			changed := false
 			for _, d := range deltas {
+				if d.Up == 0 && d.Down == 0 {
+					continue
+				}
 				id := d.ID
 				if id == 0 {
 					var ok bool

@@ -1,6 +1,9 @@
 package models
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNormalizeRealityDest(t *testing.T) {
 	if got := NormalizeRealityDest(""); got != DefaultRealityDest {
@@ -55,5 +58,26 @@ func TestXrayShareable(t *testing.T) {
 	hup := Inbound{Protocol: ProtoVLESS, Transport: TransportHTTPUpgrade, Security: SecurityTLS}
 	if !hup.XrayShareable() {
 		t.Fatal("httpupgrade tls")
+	}
+}
+
+func TestRefreshPresence(t *testing.T) {
+	now := time.Now()
+	u := User{}
+	u.RefreshPresence(now)
+	if u.Online {
+		t.Fatal("never seen")
+	}
+	old := now.Add(-2 * time.Minute)
+	u.LastSeenAt = &old
+	u.RefreshPresence(now)
+	if u.Online {
+		t.Fatal("stale should be offline")
+	}
+	fresh := now.Add(-10 * time.Second)
+	u.LastSeenAt = &fresh
+	u.RefreshPresence(now)
+	if !u.Online {
+		t.Fatal("recent should be online")
 	}
 }
