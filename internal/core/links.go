@@ -19,6 +19,7 @@ type Link struct {
 	Tag      string `json:"tag"`
 	Mode     string `json:"mode"`
 	Protocol string `json:"protocol"`
+	Xray     bool   `json:"xray"`
 }
 
 func hostFor(st models.Settings, domains []models.Domain, mode string) (host string, sni string) {
@@ -54,21 +55,22 @@ func UserLinks(u models.User, st models.Settings, domains []models.Domain, inbou
 		}
 		host, sni := hostFor(st, domains, spec.Mode)
 		name := fmt.Sprintf("%s | %s", u.Username, spec.Tag)
+		xray := spec.XrayShareable()
 		switch spec.Protocol {
 		case models.ProtoVLESS:
-			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: vlessURI(u, spec, st, host, sni)})
+			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: vlessURI(u, spec, st, host, sni), Xray: xray})
 		case models.ProtoVMess:
-			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: vmessURI(u, spec, st, host, sni)})
+			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: vmessURI(u, spec, st, host, sni), Xray: xray})
 		case models.ProtoTrojan:
-			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: trojanURI(u, spec, st, host, sni)})
+			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: trojanURI(u, spec, st, host, sni), Xray: xray})
 		case models.ProtoHysteria2:
-			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: hy2URI(u, spec, st, host, sni)})
+			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: hy2URI(u, spec, st, host, sni), Xray: xray})
 		case models.ProtoTUIC:
-			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: tuicURI(u, spec, st, host, sni)})
+			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: tuicURI(u, spec, st, host, sni), Xray: xray})
 		case models.ProtoShadowTLS:
-			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: ssURI(u, spec, st, host)})
+			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: ssURI(u, spec, st, host), Xray: xray})
 		case models.ProtoWireGuard:
-			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: wgURI(u, spec, st, host)})
+			out = append(out, Link{Name: name, Tag: spec.Tag, Mode: spec.Mode, Protocol: spec.Protocol, URI: wgURI(u, spec, st, host), Xray: xray})
 		}
 	}
 	out = append(out, telegramProxyLinks(u, st)...)
@@ -121,14 +123,15 @@ func vlessURI(u models.User, spec models.Inbound, st models.Settings, host, sni 
 	switch {
 	case spec.Security == models.SecurityReality:
 		q.Set("security", "reality")
-		q.Set("sni", st.RealityServerName)
+		q.Set("sni", st.RealityDest())
 		q.Set("fp", "chrome")
 		q.Set("pbk", st.RealityPublicKey)
 		q.Set("sid", st.RealityShortID)
 		if spec.Transport == models.TransportTCP {
 			q.Set("flow", "xtls-rprx-vision")
+			q.Set("headerType", "none")
 		}
-		setPathQuery(q, spec, st.RealityServerName)
+		setPathQuery(q, spec, st.RealityDest())
 	case spec.Mode == models.ModeCDN:
 		q.Set("security", "tls")
 		q.Set("sni", sni)
@@ -308,11 +311,18 @@ func wgURI(u models.User, spec models.Inbound, st models.Settings, host string) 
 		url.QueryEscape(st.WGPublicKey), u.WGIP, url.QueryEscape(u.Username+"-wg"))
 }
 
+// V2RaySubscription is the default for v2rayN / v2rayNG (Xray-core).
+// Xray 26 cannot load ShadowTLS, REALITY+HTTPUpgrade, or sing-box HTTP/2 /
+// xHTTP stand-ins (type=http is HTTP/1.1 camouflage, not H2). Those stay in
+// Clash YAML and sing-box JSON.
 func V2RaySubscription(links []Link) string {
 	var b strings.Builder
 	n := 0
 	for _, l := range links {
 		if l.Protocol == "mtproto" || strings.HasPrefix(l.URI, "tg://") || strings.Contains(l.URI, "t.me/proxy") {
+			continue
+		}
+		if !l.Xray {
 			continue
 		}
 		if n > 0 {
@@ -376,8 +386,8 @@ func clashProxy(name string, u models.User, spec models.Inbound, st models.Setti
 			if spec.Transport == models.TransportTCP {
 				b.WriteString("    flow: xtls-rprx-vision\n")
 			}
-			fmt.Fprintf(&b, "    servername: %s\n    reality-opts:\n      public-key: %s\n      short-id: %s\n", st.RealityServerName, st.RealityPublicKey, st.RealityShortID)
-			clashTransport(&b, spec, st.RealityServerName)
+			fmt.Fprintf(&b, "    servername: %s\n    reality-opts:\n      public-key: %s\n      short-id: %s\n", st.RealityDest(), st.RealityPublicKey, st.RealityShortID)
+			clashTransport(&b, spec, st.RealityDest())
 		} else if spec.Mode == models.ModeCDN || spec.Security == models.SecurityTLS {
 			fmt.Fprintf(&b, "    tls: true\n    client-fingerprint: chrome\n    servername: %s\n    alpn:\n      - %s\n%s", sni, linkALPN(spec), skip)
 			clashTransport(&b, spec, sni)
@@ -407,7 +417,7 @@ func clashProxy(name string, u models.User, spec models.Inbound, st models.Setti
 	case models.ProtoTUIC:
 		return fmt.Sprintf("  - name: %q\n    type: tuic\n    server: %s\n    port: %d\n    uuid: %s\n    password: %s\n    sni: %s\n    congestion-controller: bbr\n%s", name, host, port, u.UUID, u.Password, sni, skip)
 	case models.ProtoShadowTLS:
-		return fmt.Sprintf("  - name: %q\n    type: ss\n    server: %s\n    port: %d\n    cipher: 2022-blake3-aes-128-gcm\n    password: %s\n    plugin: shadow-tls\n    plugin-opts:\n      host: %s\n      password: %s\n      version: 3\n", name, host, port, st.SSPassword+":"+u.SSPassword, st.RealityServerName, u.Password)
+		return fmt.Sprintf("  - name: %q\n    type: ss\n    server: %s\n    port: %d\n    cipher: 2022-blake3-aes-128-gcm\n    password: %s\n    plugin: shadow-tls\n    plugin-opts:\n      host: %s\n      password: %s\n      version: 3\n", name, host, port, st.SSPassword+":"+u.SSPassword, st.RealityDest(), u.Password)
 	default:
 		return ""
 	}
@@ -444,11 +454,11 @@ func SingBoxClient(u models.User, st models.Settings, domains []models.Domain, i
 		if !spec.Enable {
 			continue
 		}
-		ob := clientOutbound(u, spec, st, domains)
-		if ob == nil {
+		obs := clientOutbounds(u, spec, st, domains)
+		if len(obs) == 0 {
 			continue
 		}
-		outbounds = append(outbounds, ob)
+		outbounds = append(outbounds, obs...)
 		tags = append(tags, spec.Tag)
 	}
 	_ = links
@@ -468,6 +478,42 @@ func first(s []string) string {
 		return "direct"
 	}
 	return s[0]
+}
+
+func clientOutbounds(u models.User, spec models.Inbound, st models.Settings, domains []models.Domain) []map[string]any {
+	if spec.Protocol == models.ProtoShadowTLS {
+		return shadowTLSClient(u, spec, st, domains)
+	}
+	ob := clientOutbound(u, spec, st, domains)
+	if ob == nil {
+		return nil
+	}
+	return []map[string]any{ob}
+}
+
+func shadowTLSClient(u models.User, spec models.Inbound, st models.Settings, domains []models.Domain) []map[string]any {
+	host, _ := hostFor(st, domains, spec.Mode)
+	port := spec.ListenPort
+	if port == 0 {
+		port = 8444
+	}
+	stTag := spec.Tag + "-out"
+	return []map[string]any{
+		{
+			"type": "shadowtls", "tag": stTag,
+			"server": host, "server_port": port, "version": 3,
+			"password": u.Password,
+			"tls": map[string]any{
+				"enabled": true, "server_name": st.RealityDest(),
+				"utls": map[string]any{"enabled": true, "fingerprint": "chrome"},
+			},
+		},
+		{
+			"type": "shadowsocks", "tag": spec.Tag, "detour": stTag,
+			"method":   "2022-blake3-aes-128-gcm",
+			"password": st.SSPassword + ":" + u.SSPassword,
+		},
+	}
 }
 
 func clientOutbound(u models.User, spec models.Inbound, st models.Settings, domains []models.Domain) map[string]any {
@@ -523,11 +569,6 @@ func clientOutbound(u models.User, spec models.Inbound, st models.Settings, doma
 			"uuid": u.UUID, "password": u.Password, "congestion_control": "bbr",
 			"tls": map[string]any{"enabled": true, "server_name": sni, "insecure": tlsInsecure(st, spec, sni)},
 		}
-	case models.ProtoShadowTLS:
-		return map[string]any{
-			"type": "shadowsocks", "tag": spec.Tag, "server": host, "server_port": port,
-			"method": "2022-blake3-aes-128-gcm", "password": st.SSPassword + ":" + u.SSPassword,
-		}
 	default:
 		return nil
 	}
@@ -537,7 +578,7 @@ func applyClientTLS(ob map[string]any, spec models.Inbound, st models.Settings, 
 	switch {
 	case spec.Security == models.SecurityReality:
 		ob["tls"] = map[string]any{
-			"enabled": true, "server_name": st.RealityServerName,
+			"enabled": true, "server_name": st.RealityDest(),
 			"utls":    map[string]any{"enabled": true, "fingerprint": "chrome"},
 			"reality": map[string]any{"enabled": true, "public_key": st.RealityPublicKey, "short_id": st.RealityShortID},
 		}

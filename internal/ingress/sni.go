@@ -20,9 +20,61 @@ type prefixConn struct {
 
 func (c *prefixConn) Read(p []byte) (int, error) { return c.r.Read(p) }
 
+func innerTCP(c net.Conn) *net.TCPConn {
+	for c != nil {
+		switch t := c.(type) {
+		case *net.TCPConn:
+			return t
+		case *prefixConn:
+			c = t.Conn
+		default:
+			return nil
+		}
+	}
+	return nil
+}
+
+const maxTLSRecord = 16 * 1024
+
+func setTCPOpts(c net.Conn) {
+	t := innerTCP(c)
+	if t == nil {
+		return
+	}
+	_ = t.SetNoDelay(true)
+	_ = t.SetKeepAlive(true)
+	_ = t.SetKeepAlivePeriod(30 * time.Second)
+}
+
+func peekSNIFromBuf(buf []byte, n int) (sni string, need int, ok bool) {
+	if n < 5 {
+		return "", 5, false
+	}
+	if buf[0] != 0x16 {
+		return "", 0, true
+	}
+	recLen := int(binary.BigEndian.Uint16(buf[3:5]))
+	if recLen < 0 || recLen > maxTLSRecord {
+		return "", 0, true
+	}
+	need = 5 + recLen
+	if n < need {
+		return "", need, false
+	}
+	return sniFromHandshake(buf[5:need]), 0, true
+}
+
+// peekSNI reads the first TLS record to get SNI, then replays those exact
+// bytes to the backend. MSG_PEEK + Go's edge-triggered poller can stall or
+// truncate the ClientHello; REALITY HMACs the bytes, so a faithful replay
+// is required. Dest overflow (www.microsoft.com) is a separate issue.
 func peekSNI(c net.Conn, timeout time.Duration) (sni string, wrapped net.Conn, err error) {
 	_ = c.SetReadDeadline(time.Now().Add(timeout))
 	defer func() { _ = c.SetReadDeadline(time.Time{}) }()
+	return peekSNIConsume(c)
+}
+
+func peekSNIConsume(c net.Conn) (sni string, wrapped net.Conn, err error) {
 	hdr := make([]byte, 5)
 	if _, err = io.ReadFull(c, hdr); err != nil {
 		return "", nil, err
@@ -32,14 +84,16 @@ func peekSNI(c net.Conn, timeout time.Duration) (sni string, wrapped net.Conn, e
 		return "", wrapped, nil
 	}
 	n := int(binary.BigEndian.Uint16(hdr[3:5]))
-	if n < 0 || n > 16*1024 {
+	if n < 0 || n > maxTLSRecord {
 		return "", nil, errors.New("bad tls record")
 	}
 	rest := make([]byte, n)
 	if _, err = io.ReadFull(c, rest); err != nil {
 		return "", nil, err
 	}
-	rec := append(hdr, rest...)
+	rec := make([]byte, 0, 5+len(rest))
+	rec = append(rec, hdr...)
+	rec = append(rec, rest...)
 	sni = sniFromHandshake(rest)
 	wrapped = &prefixConn{Conn: c, r: io.MultiReader(bytes.NewReader(rec), c)}
 	return sni, wrapped, nil
@@ -108,14 +162,29 @@ func sniFromHandshake(msg []byte) string {
 
 func proxyTCP(client net.Conn, addr string) {
 	defer client.Close()
+	setTCPOpts(client)
 	backend, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
 		return
 	}
 	defer backend.Close()
+	setTCPOpts(backend)
 	done := make(chan struct{}, 2)
-	go func() { _, _ = io.Copy(backend, client); done <- struct{}{} }()
-	go func() { _, _ = io.Copy(client, backend); done <- struct{}{} }()
+	go func() {
+		_, _ = io.Copy(backend, client)
+		if t := innerTCP(backend); t != nil {
+			_ = t.CloseWrite()
+		}
+		done <- struct{}{}
+	}()
+	go func() {
+		_, _ = io.Copy(client, backend)
+		if t := innerTCP(client); t != nil {
+			_ = t.CloseWrite()
+		}
+		done <- struct{}{}
+	}()
+	<-done
 	<-done
 }
 
@@ -178,19 +247,25 @@ func (i *Ingress) telegramAddr(sni string) string {
 	return ""
 }
 
-// RouteSNI is the TCP backend for a ClientHello SNI. LocalHTTPS means the
-// panel / path-mux HTTPS listener; anything else is dialed as host:port.
-func (i *Ingress) RouteSNI(sni string) string {
-	if i.Ours(sni) {
-		return LocalHTTPS
-	}
-	if addr := i.telegramAddr(sni); addr != "" {
-		return addr
-	}
-	if i.RealityAddr != "" {
+func (i *Ingress) realityAddr() string {
+	if i != nil && i.RealityAddr != "" {
 		return i.RealityAddr
 	}
 	return "127.0.0.1:12001"
+}
+
+// RouteSNI is the TCP backend for a ClientHello SNI. LocalHTTPS means the
+// panel / path-mux HTTPS listener; anything else is dialed as host:port.
+// Unknown names go to REALITY (same as HAProxy ssl_preread). Sending them to
+// the panel presents our cert; REALITY clients then log tls: bad certificate.
+func (i *Ingress) RouteSNI(sni string) string {
+	if addr := i.telegramAddr(sni); addr != "" {
+		return addr
+	}
+	if i.Ours(sni) {
+		return LocalHTTPS
+	}
+	return i.realityAddr()
 }
 
 func (i *Ingress) Ours(sni string) bool {
@@ -231,10 +306,6 @@ func (i *Ingress) ServeSNI(addr string, tlsCfg *tls.Config) error {
 	}
 	srv := &http.Server{Handler: i, TLSConfig: cfg}
 	go func() { _ = srv.Serve(tls.NewListener(cl, cfg)) }()
-	reality := i.RealityAddr
-	if reality == "" {
-		reality = "127.0.0.1:12001"
-	}
 	for {
 		c, err := ln.Accept()
 		if err != nil {
@@ -248,16 +319,13 @@ func (i *Ingress) ServeSNI(addr string, tlsCfg *tls.Config) error {
 				return
 			}
 			dest := i.RouteSNI(sni)
-			if dest == LocalHTTPS {
+			if dest == LocalHTTPS || dest == "" {
 				select {
 				case ch <- wc:
 				case <-cl.done:
 					_ = wc.Close()
 				}
 				return
-			}
-			if dest == "" {
-				dest = reality
 			}
 			proxyTCP(wc, dest)
 		}(c)

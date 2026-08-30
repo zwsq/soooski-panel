@@ -168,6 +168,9 @@ fetch_compose() {
 
 write_env() {
   local host="$1" email="$2" user="$3" pass="$4"
+  local log_level="${SOOOSKI_LOG_LEVEL:-}"
+  [[ -n "$log_level" ]] || log_level="$(env_get SOOOSKI_LOG_LEVEL)"
+  [[ -n "$log_level" ]] || log_level="info"
   umask 077
   cat >"$SOOOSKI_HOME/.env" <<EOF
 SOOOSKI_PUBLIC_HOST=${host}
@@ -176,6 +179,7 @@ SOOOSKI_ADMIN_USER=${user}
 SOOOSKI_ADMIN_PASSWORD=${pass}
 SOOOSKI_IMAGE=${SOOOSKI_IMAGE}
 SOOOSKI_DATA=./data
+SOOOSKI_LOG_LEVEL=${log_level}
 TZ=UTC
 EOF
   chmod 600 "$SOOOSKI_HOME/.env"

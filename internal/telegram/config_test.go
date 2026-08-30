@@ -22,10 +22,10 @@ func TestNormalizeAndValidateFakeDomain(t *testing.T) {
 	if err := ValidateFakeDomain("www.cloudflare.com", []string{"vpn.example.com"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateFakeDomain("vpn.example.com", []string{"vpn.example.com", "www.microsoft.com"}); err == nil {
+	if err := ValidateFakeDomain("vpn.example.com", []string{"vpn.example.com", "gateway.icloud.com"}); err == nil {
 		t.Fatal("own domain should fail")
 	}
-	if err := ValidateFakeDomain("www.microsoft.com", []string{"www.microsoft.com"}); err == nil {
+	if err := ValidateFakeDomain("gateway.icloud.com", []string{"gateway.icloud.com"}); err == nil {
 		t.Fatal("reality dest should fail")
 	}
 }

@@ -26,6 +26,7 @@ type Server struct {
 	Supervisor *supervisor.Supervisor
 	Apply      func() error
 	DataDir    string
+	LogLevel   string
 	TLSEmail   func(string)
 	Certs      func() []models.CertStatus
 	IssueCerts func() error
@@ -196,12 +197,10 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	allowed := map[string]string{
-		"public_host":         "public_host",
-		"reality_server":      "reality_server",
-		"hy2_obfs":            "hy2_obfs",
-		"camouflage_url":      "camouflage_url",
-		"reality_server_name": "reality_server",
-		"acme_email":          "acme_email",
+		"public_host":    "public_host",
+		"hy2_obfs":       "hy2_obfs",
+		"camouflage_url": "camouflage_url",
+		"acme_email":     "acme_email",
 	}
 	if v, ok := body["admin_path"]; ok {
 		p, err := normalizeSecretPath(v)
@@ -223,6 +222,10 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if err := s.applyRealityDest(body); err != nil {
+		writeJSON(w, 400, map[string]any{"error": err.Error()})
+		return
+	}
 	if s.TLSEmail != nil {
 		if v, ok := body["acme_email"]; ok {
 			s.TLSEmail(v)
@@ -237,6 +240,35 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 	_ = s.Apply()
 	s.kickCerts()
 	s.getSettings(w, r)
+}
+
+func (s *Server) applyRealityDest(body map[string]string) error {
+	v, ok := body["reality_server_name"]
+	if !ok {
+		v, ok = body["reality_server"]
+	}
+	if !ok {
+		return nil
+	}
+	dest := models.NormalizeRealityDest(v)
+	st, err := s.Store.Settings()
+	if err != nil {
+		return err
+	}
+	blocked := []string{st.PublicHost, st.TelegramFakeDomain}
+	domains, err := s.Store.Domains()
+	if err != nil {
+		return err
+	}
+	for _, d := range domains {
+		if d.Enable {
+			blocked = append(blocked, d.Domain)
+		}
+	}
+	if err := models.ValidateRealityDest(dest, blocked); err != nil {
+		return err
+	}
+	return s.Store.SetSetting("reality_server", dest)
 }
 
 func telegramKeys(body map[string]string) bool {
@@ -262,7 +294,7 @@ func (s *Server) applyTelegramSettings(body map[string]string) error {
 	if domain == "" {
 		domain = telegram.DefaultFakeDomain
 	}
-	ours := []string{st.PublicHost, st.RealityServerName}
+	ours := []string{st.PublicHost, st.RealityDest()}
 	domains, err := s.Store.Domains()
 	if err != nil {
 		return err
@@ -705,7 +737,7 @@ func (s *Server) compile() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return core.Compile(core.CompileInput{Settings: st, Users: users, Inbounds: inbounds})
+	return core.Compile(core.CompileInput{Settings: st, Users: users, Inbounds: inbounds, LogLevel: s.LogLevel})
 }
 
 func (s *Server) subUser(w http.ResponseWriter, r *http.Request) (models.User, models.Settings, []models.Domain, []models.Inbound, bool) {

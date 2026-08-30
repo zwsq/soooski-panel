@@ -87,8 +87,8 @@ func TestOursSNI(t *testing.T) {
 	if !ing.Ours("vpn.example.com") {
 		t.Fatal("configured host should hit the panel")
 	}
-	if ing.Ours("www.microsoft.com") {
-		t.Fatal("REALITY dest SNI must be forwarded to REALITY")
+	if ing.Ours("gateway.icloud.com") {
+		t.Fatal("REALITY dest SNI must not be treated as a panel host")
 	}
 }
 
@@ -96,6 +96,7 @@ func TestTelegramSNI(t *testing.T) {
 	ing := New(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), func() []Route { return nil })
 	ing.HostsFn = func() []string { return []string{"vpn.example.com"} }
 	ing.RealityAddr = "127.0.0.1:12001"
+	ing.RealitySNI = func() string { return "gateway.icloud.com" }
 	ing.TelegramFn = func() (string, string, bool) {
 		return "www.cloudflare.com", "127.0.0.1:1001", true
 	}
@@ -105,12 +106,25 @@ func TestTelegramSNI(t *testing.T) {
 	if ing.RouteSNI("www.cloudflare.com") != "127.0.0.1:1001" {
 		t.Fatalf("telegram SNI: %s", ing.RouteSNI("www.cloudflare.com"))
 	}
+	if ing.RouteSNI("gateway.icloud.com") != "127.0.0.1:12001" {
+		t.Fatalf("reality SNI: %s", ing.RouteSNI("gateway.icloud.com"))
+	}
+	if ing.RouteSNI("scanner.invalid") != "127.0.0.1:12001" {
+		t.Fatalf("unknown SNI must hit REALITY, not the panel: %s", ing.RouteSNI("scanner.invalid"))
+	}
 	if ing.RouteSNI("www.microsoft.com") != "127.0.0.1:12001" {
-		t.Fatalf("reality SNI: %s", ing.RouteSNI("www.microsoft.com"))
+		t.Fatalf("legacy dest SNI must still hit REALITY: %s", ing.RouteSNI("www.microsoft.com"))
 	}
 	ing.TelegramFn = func() (string, string, bool) { return "www.cloudflare.com", "127.0.0.1:1001", false }
 	if ing.RouteSNI("www.cloudflare.com") != "127.0.0.1:12001" {
 		t.Fatal("disabled telegram must fall through to REALITY")
+	}
+	ing.RealitySNI = nil
+	if ing.RouteSNI("gateway.icloud.com") != "127.0.0.1:12001" {
+		t.Fatal("vision still gets unknown SNI when dest callback is unset")
+	}
+	if ing.RouteSNI("") != LocalHTTPS {
+		t.Fatal("empty SNI must stay on the panel")
 	}
 }
 

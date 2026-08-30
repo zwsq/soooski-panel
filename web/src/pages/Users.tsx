@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Send } from "lucide-react";
+import { Copy, ExternalLink, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,34 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
-import { bytes, fmtExpire, trafficLimitFrom, trafficParts, userStatus, ymd } from "@/lib/format";
+import { bytes, remainingDays, trafficLimitFrom, trafficParts, trafficProgress, userStatus, ymd } from "@/lib/format";
 import type { Link, User } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+function CopyBtn({ text, label = "Copy" }: { text: string; label?: string }) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          toast.success("Copied");
+        } catch {
+          toast.error(text);
+        }
+      }}
+    >
+      <Copy />
+      {label}
+    </Button>
+  );
+}
 
 function TrafficFields({
   id,
@@ -135,16 +158,52 @@ export function UsersPage() {
                     <TableCell>
                       <Badge variant={st.cls === "ok" ? "ok" : "bad"}>{st.t}</Badge>
                     </TableCell>
-                    <TableCell>{fmtExpire(u.expire_at)}</TableCell>
                     <TableCell>
-                      {bytes(u.traffic_up + u.traffic_down)}
-                      {u.traffic_limit ? " / " + bytes(u.traffic_limit) : " / unlimited"}
+                      {(() => {
+                        const left = remainingDays(u.expire_at);
+                        if (left == null) return <span className="text-muted-foreground">No expiry</span>;
+                        if (left < 0) return <span className="tabular-nums text-muted-foreground">Expired</span>;
+                        return (
+                          <span className={cn("tabular-nums", left < 10 && "text-orange-400")}>{left}d left</span>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell className="min-w-44">
+                      {(() => {
+                        const tr = trafficProgress(u.traffic_up, u.traffic_down, u.traffic_limit);
+                        if (tr.pct == null) {
+                          return <span>{bytes(tr.used)} / unlimited</span>;
+                        }
+                        return (
+                          <div className="grid gap-1">
+                            <span className="text-xs tabular-nums">
+                              {bytes(tr.used)} / {bytes(tr.limit)}
+                            </span>
+                            <Progress value={tr.pct} />
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <code className="text-xs">{u.sub_token}</code>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const data = await api<{ sub: string }>(`/api/users/${u.id}/links`);
+                              window.open(`${location.origin}${data.sub}`, "_blank", "noopener");
+                            } catch (e) {
+                              toast.error(e instanceof Error ? e.message : "open failed");
+                            }
+                          }}
+                        >
+                          <ExternalLink />
+                          Open page
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -343,18 +402,37 @@ export function UsersPage() {
           {links && (
             <div className="grid gap-3 text-sm">
               <p className="text-muted-foreground">Import this URL in Hiddify / v2rayNG / Clash Meta / sing-box:</p>
-              <code className="block break-all rounded-md bg-background p-2">{location.origin + links.sub}</code>
-              <p className="text-muted-foreground">Open that URL in a browser for the user page (VPN configs, then Telegram).</p>
-              <code className="block break-all rounded-md bg-background p-2">{location.origin + links.clash}</code>
-              <code className="block break-all rounded-md bg-background p-2">{location.origin + links.sing_box}</code>
+              <div className="flex flex-wrap items-start gap-2">
+                <code className="min-w-0 flex-1 break-all rounded-md bg-background p-2">{location.origin + links.sub}</code>
+                <CopyBtn text={location.origin + links.sub} />
+                <Button asChild variant="outline" size="sm">
+                  <a href={location.origin + links.sub} target="_blank" rel="noopener">
+                    <ExternalLink />
+                    Open page
+                  </a>
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-start gap-2">
+                <code className="min-w-0 flex-1 break-all rounded-md bg-background p-2">{location.origin + links.clash}</code>
+                <CopyBtn text={location.origin + links.clash} label="Clash" />
+              </div>
+              <div className="flex flex-wrap items-start gap-2">
+                <code className="min-w-0 flex-1 break-all rounded-md bg-background p-2">{location.origin + links.sing_box}</code>
+                <CopyBtn text={location.origin + links.sing_box} label="sing-box" />
+              </div>
               <p className="font-medium">Share links</p>
               {links.links.map((l) => (
-                <div key={l.tag + l.uri}>
-                  <Badge variant={l.protocol === "mtproto" ? "default" : l.mode === "cdn" ? "cdn" : "direct"}>
-                    {l.protocol === "mtproto" ? "telegram" : l.mode}
-                  </Badge>{" "}
-                  {l.tag}
-                  <code className="mt-1 block break-all rounded-md bg-background p-2 text-xs">{l.uri}</code>
+                <div key={l.tag + l.uri} className="grid gap-1">
+                  <div>
+                    <Badge variant={l.protocol === "mtproto" ? "default" : l.mode === "cdn" ? "cdn" : "direct"}>
+                      {l.protocol === "mtproto" ? "telegram" : l.mode}
+                    </Badge>{" "}
+                    {l.tag}
+                  </div>
+                  <code className="block break-all rounded-md bg-background p-2 text-xs">{l.uri}</code>
+                  <div>
+                    <CopyBtn text={l.uri} />
+                  </div>
                 </div>
               ))}
             </div>

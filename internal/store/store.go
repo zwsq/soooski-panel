@@ -160,7 +160,7 @@ func (s *Store) bootstrap(cfg config.Config) (string, error) {
 		"reality_private":      priv,
 		"reality_public":       pub,
 		"reality_short_id":     crypto.ShortID(),
-		"reality_server":       "www.microsoft.com",
+		"reality_server":       models.DefaultRealityDest,
 		"ss_password":          ss,
 		"wg_private":           wgPriv,
 		"wg_public":            wgPub,
@@ -190,6 +190,9 @@ func (s *Store) bootstrap(cfg config.Config) (string, error) {
 	}
 	_, _ = s.db.Exec(`UPDATE settings SET value=? WHERE key='tls_cert_path'`, cfg.TLSCertPath())
 	_, _ = s.db.Exec(`UPDATE settings SET value=? WHERE key='tls_key_path'`, cfg.TLSKeyPath())
+	// www.microsoft.com's Certificate TLS record often exceeds REALITY's 8KB
+	// buffer, which logs "processed invalid connection" after a valid auth.
+	_, _ = s.db.Exec(`UPDATE settings SET value=? WHERE key='reality_server' AND lower(trim(value)) IN ('www.microsoft.com', '')`, models.DefaultRealityDest)
 
 	// Hiddify-style secret paths: never serve the panel at a public /panel or :8080.
 	if v, _ := s.Setting("admin_path"); v == "" || v == "/panel" || v == "panel" {

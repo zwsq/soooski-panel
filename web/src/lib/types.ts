@@ -36,9 +36,10 @@ export type User = {
   traffic_down: number;
   note?: string;
   telegram_secret?: string;
+  created_at?: string;
 };
 
-export type Link = { name: string; uri: string; tag: string; mode: string; protocol: string };
+export type Link = { name: string; uri: string; tag: string; mode: string; protocol: string; xray?: boolean };
 
 export type Inbound = {
   id: number;
