@@ -32,6 +32,12 @@ type TrafficDelta struct {
 	Down int64
 }
 
+// Presence is a user with at least one live Clash connection this poll.
+type Presence struct {
+	User string
+	ID   int64
+}
+
 type Counter struct {
 	secret string
 	mu     sync.Mutex
@@ -54,10 +60,10 @@ func (c *Counter) LastError() string {
 	return c.err
 }
 
-func (c *Counter) Poll() ([]TrafficDelta, error) {
+func (c *Counter) Poll() ([]TrafficDelta, []Presence, error) {
 	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:9090/connections", nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if c.secret != "" {
 		req.Header.Set("Authorization", "Bearer "+c.secret)
@@ -65,26 +71,27 @@ func (c *Counter) Poll() ([]TrafficDelta, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
 		c.setErr(err.Error())
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
 		err := fmt.Errorf("clash api %d: %s", resp.StatusCode, b)
 		c.setErr(err.Error())
-		return nil, err
+		return nil, nil, err
 	}
 	var file connectionsFile
 	if err := json.NewDecoder(resp.Body).Decode(&file); err != nil {
 		c.setErr(err.Error())
-		return nil, err
+		return nil, nil, err
 	}
 	c.setErr("")
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	live := map[string]bool{}
+	liveConn := map[string]bool{}
 	sum := map[string][3]int64{} // up, down, id
+	names := map[string]string{}
 	for _, conn := range file.Connections {
 		user, uid := connUser(conn.Metadata.User, conn.Metadata.UID, conn.Chains)
 		if user == "" && uid == 0 {
@@ -94,7 +101,10 @@ func (c *Counter) Poll() ([]TrafficDelta, error) {
 		if uid > 0 {
 			key = "id:" + strconv.FormatInt(uid, 10)
 		}
-		live[conn.ID] = true
+		if user != "" {
+			names[key] = user
+		}
+		liveConn[conn.ID] = true
 		prev := c.seen[conn.ID]
 		dup := conn.Upload - prev[0]
 		ddown := conn.Download - prev[1]
@@ -107,30 +117,28 @@ func (c *Counter) Poll() ([]TrafficDelta, error) {
 		c.seen[conn.ID] = [2]int64{conn.Upload, conn.Download}
 		acc := sum[key]
 		sum[key] = [3]int64{acc[0] + dup, acc[1] + ddown, uid}
-		if user != "" && acc[0] == 0 && acc[1] == 0 {
-			// keep username on the first write
-			_ = user
-		}
 	}
 	for id := range c.seen {
-		if !live[id] {
+		if !liveConn[id] {
 			delete(c.seen, id)
 		}
 	}
 	var out []TrafficDelta
+	var live []Presence
 	for key, v := range sum {
+		p := Presence{User: names[key], ID: v[2]}
+		if strings.HasPrefix(key, "id:") {
+			p.ID, _ = strconv.ParseInt(strings.TrimPrefix(key, "id:"), 10, 64)
+		} else if p.User == "" {
+			p.User = key
+		}
+		live = append(live, p)
 		if v[0] == 0 && v[1] == 0 {
 			continue
 		}
-		d := TrafficDelta{Up: v[0], Down: v[1], ID: v[2]}
-		if strings.HasPrefix(key, "id:") {
-			d.ID, _ = strconv.ParseInt(strings.TrimPrefix(key, "id:"), 10, 64)
-		} else {
-			d.User = key
-		}
-		out = append(out, d)
+		out = append(out, TrafficDelta{User: p.User, ID: p.ID, Up: v[0], Down: v[1]})
 	}
-	return out, nil
+	return out, live, nil
 }
 
 func (c *Counter) setErr(s string) {

@@ -31,6 +31,9 @@ type Ingress struct {
 	HostsFn      func() []string
 	Challenge    func(http.ResponseWriter, *http.Request) bool
 	RealityAddr  string
+	// RealitySNI is the configured REALITY handshake dest (share-link SNI).
+	// Unknown names still go to vision; only panel hosts / IP / empty SNI stay on HTTPS.
+	RealitySNI func() string
 	// TelegramFn returns FakeTLS SNI, local mtg address, and whether the proxy is on.
 	TelegramFn func() (fakeDomain, addr string, ok bool)
 	RealIP     bool

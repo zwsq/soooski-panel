@@ -13,11 +13,13 @@ The container **is** the panel and the server. Mount `/data` and keep it.
 - **Direct** — REALITY (Vision, gRPC, HTTP/2, xHTTP, HTTPUpgrade), Hysteria2, TUIC v5, ShadowTLS+SS2022, WireGuard, VLESS/VMess/Trojan TCP+TLS, and the same HTTP transports path-muxed on 443
 - **CDN** — VLESS/VMess/Trojan over WebSocket, gRPC, HTTPUpgrade, HTTP/2, and xHTTP behind Cloudflare / Arvan / Gcore (plus Flexible HTTP on port 80)
 - Optional **Telegram MTProto** FakeTLS — **per user** secret, traffic counted toward that user's quota
-- **SNI mux on TCP 443** — your domain → HTTPS panel + path mux; Telegram fake domain → MTProto; other SNI → REALITY (same idea as Hiddify/HAProxy)
+- **SNI mux on TCP 443** — your domain → HTTPS panel + path mux; Telegram fake domain → MTProto; other SNI → REALITY
 - **Let's Encrypt** — HTTP-01 on port 80, auto-renew, dashboard status; issued cert is used by the panel and by TLS inbounds
 - **Secret admin and client paths** — not on a separate port; unknown URLs look like default nginx
 - **User page** — open a subscription URL in a browser: traffic, VPN subscription, Telegram proxy, then VPN configs. Apps still get the raw sub.
 - **Traffic accounting** — per-user via sing-box Clash API outbound chains, plus Telegram MTProto bytes on that user's secret
+- **Online / last seen** — live Clash connections and Telegram byte counters; the admin Users page shows Online or `2 minutes ago`
+- **Mobile admin** — React + Tailwind + shadcn; bottom nav and card lists on phones
 - **Admin account** — username, password, and the secret **admin path** are changeable in Settings; `soooski reset-admin` recovers a forgotten login (env vars are first boot only)
 
 Protocol traffic is [sing-box](https://github.com/SagerNet/sing-box) 1.11.15 as a child process. Telegram FakeTLS is [mtg-multi](https://github.com/MHSanaei/mtg-multi) on localhost, one secret per user. The Go binary is the control plane, CDN path mux, admin UI, and camouflage site.
@@ -151,12 +153,12 @@ Enable or disable each inbound in the panel. Path-based protocols exist twice (d
 
 Add domains in the panel.
 
-- **direct** — A record to this machine. Used for REALITY / Hysteria2 / TUIC / ShadowTLS / WireGuard / raw TLS, and for path-muxed WS/gRPC/H2/HTTPUpgrade/xHTTP with your origin SNI on 443. REALITY handshake dest defaults to `www.microsoft.com`. Dest lookups are **IPv4-only** so a VPS without working IPv6 does not fail cloning that site.
+- **direct** — A record to this machine. Used for REALITY / Hysteria2 / TUIC / ShadowTLS / WireGuard / raw TLS, and for path-muxed WS/gRPC/H2/HTTPUpgrade/xHTTP with your origin SNI on 443. REALITY handshake dest defaults to `gateway.icloud.com` (`www.microsoft.com` overflows REALITY's 8KB certificate buffer). Dest lookups are **IPv4-only** so a VPS without working IPv6 does not fail cloning that site.
 - **cdn** — orange-cloud (or Arvan/Gcore). Origin **443** (Full TLS) or **80** (Flexible). Share links use the CDN hostname on 443. WS/HTTPUpgrade pin `alpn=http/1.1` so v2rayNG does not try HTTP/2 and fail the upgrade. gRPC and H2 use `h2`.
 
 **HTTP/2 and xHTTP:** Hiddify `h2` and `xttp`/`xHTTP` both use sing-box 1.11 `http` transport. Share links are `type=http`. Native Xray split-HTTP is not in this core. SSH is not included.
 
-Internet scanners hitting 443 with random SNI are forwarded to REALITY. That is expected.
+Internet scanners hitting 443 with random SNI are forwarded to REALITY. That is expected. REALITY clients must use the configured dest as SNI (re-import the share link after a dest change).
 
 ## Panel HTTPS
 
@@ -165,7 +167,7 @@ Internet scanners hitting 443 with random SNI are forwarded to REALITY. That is 
 | `public_host` or a domain in the panel | HTTPS: admin UI, client subs, path-muxed proxies |
 | An IP, or empty | HTTPS panel (`https://IP/`) |
 | Telegram fake domain (default `www.cloudflare.com`) when Telegram is enabled | MTProto (mtg on `127.0.0.1:1001`) |
-| Anything else (e.g. `www.microsoft.com`) | REALITY |
+| Anything else (including the REALITY dest, default `gateway.icloud.com`) | REALITY |
 
 Certificates:
 
@@ -179,7 +181,7 @@ Port 80 must be reachable from the internet for issuance.
 Each user has `/{client_path}/{token}`:
 
 - **Browser** → usage, expiry, QR, copyable configs
-- v2rayNG / default app → base64 URI list
+- v2rayNG / v2rayN / default app → base64 URI list of configs **Xray-core can load**. ShadowTLS, REALITY+HTTPUpgrade, and sing-box HTTP/2 / xHTTP stand-ins are omitted: Xray 26 rejects them (`REALITY only supports RAW, XHTTP and gRPC`; `type=http` is HTTP/1.1 camouflage, not H2). Clash and sing-box still get the full matrix.
 - Clash Meta / Stash → YAML
 - sing-box / Hiddify app → JSON
 
@@ -208,4 +210,5 @@ Do **not** set the fake domain to your panel hostname or the REALITY handshake d
 | `SOOOSKI_DATA_DIR` | `/data` | path inside the container |
 | `SOOOSKI_LISTEN_HTTP` | `:80` | |
 | `SOOOSKI_LISTEN_HTTPS` | `:443` | |
+| `SOOOSKI_LOG_LEVEL` | `info` | sing-box + process logs (`trace`/`debug`/`info`/`warn`/`error`/`off`). `info` logs every inbound connection. |
 | `TZ` | `UTC` | |

@@ -1,6 +1,8 @@
 package models
 
 import (
+	"fmt"
+	"net"
 	"strings"
 	"time"
 )
@@ -32,6 +34,11 @@ const (
 	SecurityTLS       = "tls"
 	SecurityNone      = "none"
 	SecurityShadowTLS = "shadowtls"
+
+	// DefaultRealityDest is the REALITY handshake target. www.microsoft.com is
+	// not usable: Akamai often returns a Certificate TLS record > 8KB, which
+	// REALITY drops as "processed invalid connection".
+	DefaultRealityDest = "gateway.icloud.com"
 )
 
 type Admin struct {
@@ -58,6 +65,16 @@ type User struct {
 	Note           string     `json:"note"`
 	TelegramSecret string     `json:"telegram_secret,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
+	LastSeenAt     *time.Time `json:"last_seen_at,omitempty"`
+	Online         bool       `json:"online"`
+}
+
+// OnlineWindow is how recently a user must have been seen in Clash connections
+// (or Telegram byte counters) to count as online.
+const OnlineWindow = 60 * time.Second
+
+func (u *User) RefreshPresence(now time.Time) {
+	u.Online = u.LastSeenAt != nil && now.Sub(*u.LastSeenAt) < OnlineWindow
 }
 
 func (u User) Expired() bool {
@@ -119,6 +136,23 @@ func (in Inbound) H2C() bool {
 	return in.Transport == TransportGRPC || in.Transport == TransportH2 || in.Transport == TransportXHTTP
 }
 
+// XrayShareable is true when v2rayN / Xray-core can load this inbound.
+// Xray 26 REALITY only allows RAW (Vision), XHTTP, and gRPC — not HTTPUpgrade or
+// sing-box HTTP/2. Our "xhttp" inbound is sing-box `http` transport, not native
+// Xray xHTTP. ShadowTLS has no ss:// form Xray understands (Clash/sing-box only).
+func (in Inbound) XrayShareable() bool {
+	if in.Protocol == ProtoShadowTLS {
+		return false
+	}
+	if in.Security == SecurityReality {
+		return in.Transport == TransportTCP || in.Transport == TransportGRPC
+	}
+	if in.Transport == TransportH2 || in.Transport == TransportXHTTP {
+		return false
+	}
+	return true
+}
+
 // SingBoxTransport is the sing-box JSON transport type.
 func SingBoxTransport(t string) string {
 	if t == TransportXHTTP {
@@ -170,6 +204,50 @@ func (s Settings) ClientPrefix() string {
 	return "/" + p
 }
 
+func (s Settings) RealityDest() string {
+	return NormalizeRealityDest(s.RealityServerName)
+}
+
+func NormalizeRealityDest(v string) string {
+	v = strings.TrimSpace(strings.ToLower(v))
+	v = strings.TrimPrefix(v, "https://")
+	v = strings.TrimPrefix(v, "http://")
+	if i := strings.IndexAny(v, "/:"); i >= 0 {
+		v = v[:i]
+	}
+	v = strings.TrimSuffix(strings.TrimSpace(v), ".")
+	if v == "" {
+		return DefaultRealityDest
+	}
+	return v
+}
+
+func ValidateRealityDest(dest string, blocked []string) error {
+	dest = NormalizeRealityDest(dest)
+	if dest == "www.microsoft.com" || dest == "microsoft.com" {
+		return fmt.Errorf("www.microsoft.com is not a usable REALITY dest (TLS certificate record exceeds REALITY's 8KB limit); try %s", DefaultRealityDest)
+	}
+	if net.ParseIP(dest) != nil {
+		return fmt.Errorf("REALITY dest must be a public website hostname, not an IP")
+	}
+	if !strings.Contains(dest, ".") {
+		return fmt.Errorf("REALITY dest must be a hostname")
+	}
+	for _, h := range blocked {
+		h = strings.ToLower(strings.TrimSpace(h))
+		h = strings.TrimPrefix(h, "https://")
+		h = strings.TrimPrefix(h, "http://")
+		if i := strings.IndexAny(h, "/:"); i >= 0 {
+			h = h[:i]
+		}
+		h = strings.TrimSuffix(strings.TrimSpace(h), ".")
+		if h != "" && h == dest {
+			return fmt.Errorf("do not use %s as REALITY dest (it would steal that SNI from the panel or Telegram)", dest)
+		}
+	}
+	return nil
+}
+
 type CertStatus struct {
 	Domain    string `json:"domain"`
 	State     string `json:"state"` // issued, renewing, pending, failed, ineligible, self_signed, missing
@@ -186,6 +264,7 @@ type Dashboard struct {
 	CoreError    string       `json:"core_error,omitempty"`
 	UsersTotal   int          `json:"users_total"`
 	UsersActive  int          `json:"users_active"`
+	UsersOnline  int          `json:"users_online"`
 	TrafficUp    int64        `json:"traffic_up"`
 	TrafficDown  int64        `json:"traffic_down"`
 	TrafficError string       `json:"traffic_error,omitempty"`

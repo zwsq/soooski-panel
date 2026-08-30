@@ -59,6 +59,9 @@ func TestUserCRUDAndInboundsSeeded(t *testing.T) {
 	if st.RealityPublicKey == "" {
 		t.Fatal(st, err)
 	}
+	if st.RealityServerName != "gateway.icloud.com" {
+		t.Fatalf("default REALITY dest %q", st.RealityServerName)
+	}
 	if st.AdminPath == "" || !strings.Contains(st.AdminPath, "/") {
 		t.Fatalf("admin path should be a hiddify-style secret, got %q", st.AdminPath)
 	}
@@ -163,5 +166,49 @@ func TestResetAdminClearsSessions(t *testing.T) {
 	again, err := s.AdminByUsername("root")
 	if err != nil || !crypto.CheckPassword(again.PasswordHash, "brandnew9") {
 		t.Fatal(again, err)
+	}
+}
+
+func TestMigratesMicrosoftRealityDest(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Config{DataDir: dir, AdminUser: "admin", AdminPass: "secret"}
+	s, _, err := Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetSetting("reality_server", "www.microsoft.com"); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+
+	s2, _, err := Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s2.Close() })
+	st, err := s2.Settings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.RealityServerName != "gateway.icloud.com" {
+		t.Fatalf("microsoft dest should migrate, got %q", st.RealityServerName)
+	}
+}
+
+func TestTouchLastSeen(t *testing.T) {
+	s := testStore(t)
+	u, err := s.CreateUser("eve", "", 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.LastSeenAt != nil || u.Online {
+		t.Fatalf("new user should be unseen %#v", u)
+	}
+	if err := s.TouchLastSeen([]int64{u.ID, u.ID, 0}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.UserByID(u.ID)
+	if err != nil || got.LastSeenAt == nil || !got.Online {
+		t.Fatalf("last seen %#v %v", got, err)
 	}
 }

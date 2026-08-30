@@ -12,6 +12,18 @@ type CompileInput struct {
 	Settings models.Settings
 	Users    []models.User
 	Inbounds []models.Inbound
+	LogLevel string
+}
+
+func logLevel(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "trace", "debug", "info", "warn", "error", "fatal", "panic", "off":
+		return strings.ToLower(strings.TrimSpace(s))
+	case "warning":
+		return "warn"
+	default:
+		return "info"
+	}
 }
 
 func activeUsers(users []models.User) []models.User {
@@ -48,9 +60,9 @@ func Compile(in CompileInput) ([]byte, error) {
 		}
 	}
 	cfg := map[string]any{
-		"log": map[string]any{"level": "info", "timestamp": true},
-		// ipv4_only: REALITY dest (e.g. www.microsoft.com) is often Akamai
-		// dual-stack. Hosts without working IPv6 fail with
+		"log": map[string]any{"level": logLevel(in.LogLevel), "timestamp": true},
+		// ipv4_only: REALITY dest (e.g. gateway.icloud.com) is often dual-stack.
+		// Hosts without working IPv6 fail with
 		// "dial tcp [2a02:...]:443: network is unreachable".
 		"dns": map[string]any{
 			"servers":  []map[string]any{{"tag": "google", "address": "8.8.8.8", "detour": "direct"}},
@@ -171,7 +183,9 @@ func vlessInbound(spec models.Inbound, st models.Settings, users []models.User) 
 		"listen":      host,
 		"listen_port": port,
 		"users":       vlessUsers(users, flow),
-		"sniff":       true,
+	}
+	if spec.Security != models.SecurityReality {
+		ib["sniff"] = true
 	}
 	applyTLS(ib, spec, st)
 	applyTransport(ib, spec)
@@ -343,12 +357,8 @@ func tlsCert(st models.Settings) map[string]any {
 }
 
 func handshakeDest(st models.Settings) map[string]any {
-	sni := strings.TrimSpace(st.RealityServerName)
-	if sni == "" {
-		sni = "www.microsoft.com"
-	}
 	return map[string]any{
-		"server":          sni,
+		"server":          st.RealityDest(),
 		"server_port":     443,
 		"domain_strategy": "ipv4_only",
 		"connect_timeout": "5s",
@@ -358,9 +368,11 @@ func handshakeDest(st models.Settings) map[string]any {
 func applyTLS(ib map[string]any, spec models.Inbound, st models.Settings) {
 	switch spec.Security {
 	case models.SecurityReality:
-		sni := strings.TrimSpace(st.RealityServerName)
-		if sni == "" {
-			sni = "www.microsoft.com"
+		sni := st.RealityDest()
+		sid := strings.TrimSpace(st.RealityShortID)
+		shortIDs := []string{""}
+		if sid != "" {
+			shortIDs = []string{"", sid}
 		}
 		ib["tls"] = map[string]any{
 			"enabled":     true,
@@ -368,7 +380,7 @@ func applyTLS(ib map[string]any, spec models.Inbound, st models.Settings) {
 			"reality": map[string]any{
 				"enabled":     true,
 				"private_key": st.RealityPrivateKey,
-				"short_id":    []string{st.RealityShortID},
+				"short_id":    shortIDs,
 				"handshake":   handshakeDest(st),
 			},
 		}

@@ -107,7 +107,10 @@ CREATE TABLE IF NOT EXISTS sessions (
 	if err != nil {
 		return err
 	}
-	return s.ensureUserColumn("telegram_secret", "TEXT NOT NULL DEFAULT ''")
+	if err := s.ensureUserColumn("telegram_secret", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	return s.ensureUserColumn("last_seen_at", "TEXT")
 }
 
 func (s *Store) ensureUserColumn(name, decl string) error {
@@ -160,7 +163,7 @@ func (s *Store) bootstrap(cfg config.Config) (string, error) {
 		"reality_private":      priv,
 		"reality_public":       pub,
 		"reality_short_id":     crypto.ShortID(),
-		"reality_server":       "www.microsoft.com",
+		"reality_server":       models.DefaultRealityDest,
 		"ss_password":          ss,
 		"wg_private":           wgPriv,
 		"wg_public":            wgPub,
@@ -190,6 +193,9 @@ func (s *Store) bootstrap(cfg config.Config) (string, error) {
 	}
 	_, _ = s.db.Exec(`UPDATE settings SET value=? WHERE key='tls_cert_path'`, cfg.TLSCertPath())
 	_, _ = s.db.Exec(`UPDATE settings SET value=? WHERE key='tls_key_path'`, cfg.TLSKeyPath())
+	// www.microsoft.com's Certificate TLS record often exceeds REALITY's 8KB
+	// buffer, which logs "processed invalid connection" after a valid auth.
+	_, _ = s.db.Exec(`UPDATE settings SET value=? WHERE key='reality_server' AND lower(trim(value)) IN ('www.microsoft.com', '')`, models.DefaultRealityDest)
 
 	// Hiddify-style secret paths: never serve the panel at a public /panel or :8080.
 	if v, _ := s.Setting("admin_path"); v == "" || v == "/panel" || v == "panel" {
@@ -367,16 +373,16 @@ func (s *Store) DeleteSession(token string) {
 	_, _ = s.db.Exec(`DELETE FROM sessions WHERE token=?`, token)
 }
 
-const userCols = `id,username,uuid,password,ss_password,sub_token,enable,expire_at,traffic_limit,traffic_up,traffic_down,wg_private_key,wg_public_key,wg_ip,note,telegram_secret,created_at`
+const userCols = `id,username,uuid,password,ss_password,sub_token,enable,expire_at,traffic_limit,traffic_up,traffic_down,wg_private_key,wg_public_key,wg_ip,note,telegram_secret,created_at,last_seen_at`
 
 func scanUser(sc interface{ Scan(dest ...any) error }) (models.User, error) {
 	var u models.User
-	var expire sql.NullString
+	var expire, lastSeen sql.NullString
 	var enable int
 	var created string
 	err := sc.Scan(&u.ID, &u.Username, &u.UUID, &u.Password, &u.SSPassword, &u.SubToken,
 		&enable, &expire, &u.TrafficLimit, &u.TrafficUp, &u.TrafficDown,
-		&u.WGPrivateKey, &u.WGPublicKey, &u.WGIP, &u.Note, &u.TelegramSecret, &created)
+		&u.WGPrivateKey, &u.WGPublicKey, &u.WGIP, &u.Note, &u.TelegramSecret, &created, &lastSeen)
 	if err != nil {
 		return u, err
 	}
@@ -387,7 +393,14 @@ func scanUser(sc interface{ Scan(dest ...any) error }) (models.User, error) {
 			u.ExpireAt = &t
 		}
 	}
+	if lastSeen.Valid && lastSeen.String != "" {
+		t, err := time.Parse(time.RFC3339, lastSeen.String)
+		if err == nil {
+			u.LastSeenAt = &t
+		}
+	}
 	u.CreatedAt, _ = time.Parse(time.RFC3339, created)
+	u.RefreshPresence(time.Now())
 	return u, nil
 }
 
@@ -533,6 +546,39 @@ func (s *Store) ResetTraffic(id int64) error {
 
 func (s *Store) AddTraffic(id int64, up, down int64) error {
 	_, err := s.db.Exec(`UPDATE users SET traffic_up=traffic_up+?, traffic_down=traffic_down+? WHERE id=?`, up, down, id)
+	return err
+}
+
+func (s *Store) TouchLastSeen(ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := map[int64]bool{}
+	var uniq []int64
+	for _, id := range ids {
+		if id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		uniq = append(uniq, id)
+	}
+	if len(uniq) == 0 {
+		return nil
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	args := make([]any, 0, 1+len(uniq))
+	args = append(args, now)
+	var b strings.Builder
+	b.WriteString(`UPDATE users SET last_seen_at=? WHERE id IN (`)
+	for i, id := range uniq {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteByte('?')
+		args = append(args, id)
+	}
+	b.WriteByte(')')
+	_, err := s.db.Exec(b.String(), args...)
 	return err
 }
 

@@ -27,7 +27,7 @@ func TestVLESSRealityLink(t *testing.T) {
 	if !strings.HasPrefix(reality, "vless://") {
 		t.Fatalf("reality %s", reality)
 	}
-	for _, part := range []string{"security=reality", "pbk=pub", "sid=abcd1234", "flow=xtls-rprx-vision", ":443"} {
+	for _, part := range []string{"security=reality", "pbk=pub", "sid=abcd1234", "flow=xtls-rprx-vision", "headerType=none", ":443", "sni=gateway.icloud.com"} {
 		if !strings.Contains(reality, part) {
 			t.Fatalf("reality missing %s: %s", part, reality)
 		}
@@ -178,5 +178,68 @@ func TestTelegramLinks(t *testing.T) {
 	b := telegramProxyLinks(other, in.Settings)
 	if a[0].URI == b[0].URI {
 		t.Fatal("users must have different telegram secrets")
+	}
+}
+
+func TestV2RaySkipsSingBoxOnly(t *testing.T) {
+	in := sampleInput()
+	links := UserLinks(in.Users[0], in.Settings, nil, in.Inbounds)
+	var skip, keep int
+	for _, l := range links {
+		switch l.Tag {
+		case "vless-reality", "vless-reality-grpc", "vless-ws", "vless-httpupgrade", "hysteria2", "tuic", "wireguard":
+			if !l.Xray {
+				t.Fatalf("%s should be in the v2ray sub", l.Tag)
+			}
+		case "vless-reality-httpupgrade", "vless-reality-h2", "vless-reality-xhttp", "vless-h2", "vless-xhttp", "shadowtls":
+			if l.Xray {
+				t.Fatalf("%s is Xray-incompatible", l.Tag)
+			}
+		}
+		if l.Protocol == "mtproto" {
+			continue
+		}
+		if l.Xray {
+			keep++
+		} else {
+			skip++
+		}
+	}
+	if skip < 10 || keep < 20 {
+		t.Fatalf("share split skip=%d keep=%d", skip, keep)
+	}
+	raw, err := base64.StdEncoding.DecodeString(V2RaySubscription(links))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	for _, l := range links {
+		if l.Protocol == "mtproto" {
+			continue
+		}
+		present := strings.Contains(body, l.URI)
+		if l.Xray && !present {
+			t.Fatalf("v2ray sub missing %s", l.Tag)
+		}
+		if !l.Xray && present {
+			t.Fatalf("v2ray sub should omit %s", l.Tag)
+		}
+	}
+	y := ClashYAML(in.Users[0], in.Settings, nil, in.Inbounds)
+	if !strings.Contains(y, "plugin: shadow-tls") {
+		t.Fatal("clash should keep shadowtls")
+	}
+	if !strings.Contains(y, "network: h2") {
+		t.Fatal("clash should keep h2")
+	}
+	sb, err := SingBoxClient(in.Users[0], in.Settings, nil, in.Inbounds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(sb), "vless-h2") {
+		t.Fatalf("sing-box client should keep h2: %s", sb)
+	}
+	if !strings.Contains(string(sb), `"type": "shadowtls"`) || !strings.Contains(string(sb), "shadowtls-out") {
+		t.Fatalf("sing-box client should wrap ShadowTLS: %s", sb)
 	}
 }

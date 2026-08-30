@@ -12,6 +12,7 @@ export type Dashboard = {
   core_error?: string;
   users_total: number;
   users_active: number;
+  users_online: number;
   traffic_up: number;
   traffic_down: number;
   traffic_error?: string;
@@ -36,9 +37,12 @@ export type User = {
   traffic_down: number;
   note?: string;
   telegram_secret?: string;
+  created_at?: string;
+  last_seen_at?: string | null;
+  online?: boolean;
 };
 
-export type Link = { name: string; uri: string; tag: string; mode: string; protocol: string };
+export type Link = { name: string; uri: string; tag: string; mode: string; protocol: string; xray?: boolean };
 
 export type Inbound = {
   id: number;

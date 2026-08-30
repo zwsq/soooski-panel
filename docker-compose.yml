@@ -22,6 +22,7 @@ services:
       SOOOSKI_ACME_EMAIL: ${SOOOSKI_ACME_EMAIL:-}
       SOOOSKI_ADMIN_USER: ${SOOOSKI_ADMIN_USER:-admin}
       SOOOSKI_ADMIN_PASSWORD: ${SOOOSKI_ADMIN_PASSWORD:-}
+      SOOOSKI_LOG_LEVEL: ${SOOOSKI_LOG_LEVEL:-info}
       TZ: ${TZ:-UTC}
     logging:
       driver: json-file
